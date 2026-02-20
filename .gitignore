@@ -1,0 +1,11 @@
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env
+.venv/
+logs/
+models/saved_models/
+data/dataset.csv
+.DS_Store
+.vscode/
