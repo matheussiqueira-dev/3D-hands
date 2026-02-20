@@ -1,5 +1,10 @@
 # 3D Hands - Real-Time Hand Gestures
 
+![Python](https://img.shields.io/badge/python-3.10%2B-blue)
+![License](https://img.shields.io/badge/license-MIT-green)
+![Platform](https://img.shields.io/badge/platform-Windows-0078D6)
+![Status](https://img.shields.io/badge/status-experimental-orange)
+
 Aplicacao profissional de visao computacional para controle de objetos 2D/3D por gestos das maos em tempo real. O sistema combina MediaPipe Hands, OpenCV e um renderizador 3D em OpenGL para permitir translacao, rotacao, escala, zoom e eventos por gestos.
 
 Autor: Matheus Siqueira
@@ -13,6 +18,12 @@ Autor: Matheus Siqueira
 - Suporte a duas maos (modo avancado).
 - Overlay de debug com FPS, gesto, escala e rotacao.
 - Pipeline modular: captura, analise, gestos e renderizacao.
+
+## Demo
+
+![Demo GIF](assets/demo.gif)
+
+![Screenshot](assets/screenshot.png)
 
 ## Arquitetura
 
@@ -56,6 +67,12 @@ Dependencias principais (ver [requirements.txt](requirements.txt)):
 
 ```bash
 pip install -r requirements.txt
+```
+
+## Quick Start
+
+```bash
+python app/gesture_3d_main.py
 ```
 
 ## Execucao
@@ -132,7 +149,7 @@ Basicas:
 
 ## Licenca
 
-Defina a licenca apropriada (ex.: MIT) conforme a distribuicao desejada.
+Distribuido sob a licenca MIT. Veja [LICENSE](LICENSE).
 
 ## Autoria
 
