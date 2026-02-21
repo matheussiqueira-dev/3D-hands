@@ -1,0 +1,262 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Test - 3D Hands</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 50px auto;
+            padding: 20px;
+            background: #f0f0f0;
+        }
+        .test-card {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 5px;
+            border-left: 4px solid #48bb78;
+            background: #f0fff4;
+        }
+        .test-failed {
+            border-left-color: #f56565;
+            background: #fff5f5;
+        }
+        button {
+            padding: 12px 24px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            font-size: 16px;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover {
+            background: #5568d3;
+        }
+        pre {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        h1 {
+            color: #667eea;
+        }
+        .success {
+            color: #48bb78;
+            font-weight: bold;
+        }
+        .error {
+            color: #f56565;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-card">
+        <h1>🧪 Teste de Compatibilidade - 3D Hands</h1>
+        <p>Este teste verifica se seu navegador suporta todas as funcionalidades necessárias.</p>
+        
+        <button onclick="runTests()">▶️ Executar Testes</button>
+        <button onclick="location.href='index.html'">🚀 Abrir Aplicação</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <div class="test-card">
+        <h2>📋 Requisitos</h2>
+        <ul>
+            <li>Navegador moderno (Chrome 90+, Edge 90+, Firefox 88+)</li>
+            <li>Webcam funcional</li>
+            <li>HTTPS ou localhost (para acesso à câmera)</li>
+            <li>Conexão com internet (para CDN)</li>
+        </ul>
+    </div>
+
+    <div class="test-card">
+        <h2>🚀 Como Testar Localmente</h2>
+        
+        <h3>Opção 1: Python HTTP Server</h3>
+        <pre>python -m http.server 8000 --directory public</pre>
+        <p>Depois acesse: <code>http://localhost:8000</code></p>
+
+        <h3>Opção 2: Node.js HTTP Server</h3>
+        <pre>npx http-server public -p 8000</pre>
+        <p>Depois acesse: <code>http://localhost:8000</code></p>
+
+        <h3>Opção 3: PHP</h3>
+        <pre>php -S localhost:8000 -t public</pre>
+        <p>Depois acesse: <code>http://localhost:8000</code></p>
+
+        <h3>Opção 4: VS Code Live Server</h3>
+        <p>1. Instale a extensão "Live Server"<br>
+           2. Clique com botão direito em <code>public/index.html</code><br>
+           3. Selecione "Open with Live Server"</p>
+    </div>
+
+    <script>
+        async function runTests() {
+            const resultsDiv = document.getElementById('results');
+            resultsDiv.innerHTML = '<h3>Executando testes...</h3>';
+            
+            const tests = [];
+
+            // Test 1: WebGL Support
+            tests.push(testWebGL());
+
+            // Test 2: getUserMedia Support
+            tests.push(testGetUserMedia());
+
+            // Test 3: ES6 Modules
+            tests.push(testES6Modules());
+
+            // Test 4: Three.js CDN
+            tests.push(await testThreeJS());
+
+            // Test 5: MediaPipe CDN
+            tests.push(await testMediaPipe());
+
+            // Display results
+            let html = '<h3>Resultados dos Testes:</h3>';
+            let allPassed = true;
+
+            tests.forEach(test => {
+                const className = test.passed ? 'test-result' : 'test-result test-failed';
+                const status = test.passed ? '<span class="success">✓ PASSOU</span>' : '<span class="error">✗ FALHOU</span>';
+                html += `
+                    <div class="${className}">
+                        <strong>${test.name}</strong>: ${status}<br>
+                        <small>${test.message}</small>
+                    </div>
+                `;
+                if (!test.passed) allPassed = false;
+            });
+
+            if (allPassed) {
+                html += '<div class="test-result"><strong class="success">🎉 Todos os testes passaram! Você pode usar a aplicação.</strong></div>';
+            } else {
+                html += '<div class="test-result test-failed"><strong class="error">⚠️ Alguns testes falharam. Veja os detalhes acima.</strong></div>';
+            }
+
+            resultsDiv.innerHTML = html;
+        }
+
+        function testWebGL() {
+            try {
+                const canvas = document.createElement('canvas');
+                const gl = canvas.getContext('webgl') || canvas.getContext('experimental-webgl');
+                if (gl && gl instanceof WebGLRenderingContext) {
+                    return {
+                        name: 'WebGL Support',
+                        passed: true,
+                        message: 'WebGL está disponível e funcionando.'
+                    };
+                }
+            } catch (e) {}
+            
+            return {
+                name: 'WebGL Support',
+                passed: false,
+                message: 'WebGL não está disponível. Atualize seu navegador.'
+            };
+        }
+
+        function testGetUserMedia() {
+            if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                return {
+                    name: 'Camera API',
+                    passed: true,
+                    message: 'API de câmera está disponível.'
+                };
+            }
+            return {
+                name: 'Camera API',
+                passed: false,
+                message: 'API de câmera não disponível. Use HTTPS ou localhost.'
+            };
+        }
+
+        function testES6Modules() {
+            try {
+                eval('const test = () => {}; const [a, b] = [1, 2]; const {x} = {x: 1};');
+                return {
+                    name: 'ES6 Support',
+                    passed: true,
+                    message: 'Suporte a ES6 modules detectado.'
+                };
+            } catch (e) {
+                return {
+                    name: 'ES6 Support',
+                    passed: false,
+                    message: 'ES6 não suportado. Atualize seu navegador.'
+                };
+            }
+        }
+
+        async function testThreeJS() {
+            try {
+                const response = await fetch('https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js', {
+                    method: 'HEAD'
+                });
+                if (response.ok) {
+                    return {
+                        name: 'Three.js CDN',
+                        passed: true,
+                        message: 'CDN do Three.js está acessível.'
+                    };
+                }
+            } catch (e) {
+                return {
+                    name: 'Three.js CDN',
+                    passed: false,
+                    message: 'Erro ao acessar CDN do Three.js: ' + e.message
+                };
+            }
+            
+            return {
+                name: 'Three.js CDN',
+                passed: false,
+                message: 'CDN do Three.js não está acessível.'
+            };
+        }
+
+        async function testMediaPipe() {
+            try {
+                const response = await fetch('https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469404/hands.js', {
+                    method: 'HEAD'
+                });
+                if (response.ok) {
+                    return {
+                        name: 'MediaPipe CDN',
+                        passed: true,
+                        message: 'CDN do MediaPipe está acessível.'
+                    };
+                }
+            } catch (e) {
+                return {
+                    name: 'MediaPipe CDN',
+                    passed: false,
+                    message: 'Erro ao acessar CDN do MediaPipe: ' + e.message
+                };
+            }
+            
+            return {
+                name: 'MediaPipe CDN',
+                passed: false,
+                message: 'CDN do MediaPipe não está acessível.'
+            };
+        }
+    </script>
+</body>
+</html>

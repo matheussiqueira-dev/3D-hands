@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>3D Hands - Controle por Gestos</title>
+    <meta name="description" content="Aplicação de reconhecimento de gestos 3D em tempo real">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="app-container">
+        <!-- Header -->
+        <header class="header">
+            <h1>🖐️ 3D Hands - Controle por Gestos</h1>
+            <div class="status-bar">
+                <span id="fps-counter">FPS: 0</span>
+                <span id="gesture-status">Gesto: Nenhum</span>
+                <span id="camera-status" class="status-offline">📷 Câmera: Offline</span>
+            </div>
+        </header>
+
+        <!-- Main content -->
+        <main class="main-content">
+            <!-- Video feed -->
+            <div class="video-container">
+                <video id="webcam" autoplay playsinline></video>
+                <canvas id="output-canvas"></canvas>
+                <div class="controls-overlay">
+                    <button id="start-btn" class="btn btn-primary">Iniciar Câmera</button>
+                    <button id="stop-btn" class="btn btn-danger" disabled>Parar</button>
+                </div>
+            </div>
+
+            <!-- 3D Scene -->
+            <div class="scene-container">
+                <canvas id="scene-canvas"></canvas>
+                <div class="scene-info">
+                    <div id="object-info">
+                        <p><strong>Objeto:</strong> <span id="object-type">Cubo</span></p>
+                        <p><strong>Posição:</strong> <span id="object-position">0, 0, 0</span></p>
+                        <p><strong>Rotação:</strong> <span id="object-rotation">0°, 0°, 0°</span></p>
+                        <p><strong>Escala:</strong> <span id="object-scale">1.0</span></p>
+                    </div>
+                </div>
+            </div>
+        </main>
+
+        <!-- Gesture Guide -->
+        <aside class="gesture-guide">
+            <h3>Guia de Gestos</h3>
+            <ul>
+                <li>✋ <strong>Mão aberta:</strong> Mover objeto em X/Y/Z</li>
+                <li>🤏 <strong>Pinch:</strong> Zoom in/out</li>
+                <li>✌️ <strong>Dois dedos:</strong> Rotação X/Y</li>
+                <li>✊ <strong>Punho (2s):</strong> Reset posição</li>
+                <li>🖖 <strong>Três dedos (0.6s):</strong> Mudar cor</li>
+                <li>👍 <strong>Polegar para cima:</strong> Giro contínuo</li>
+                <li>👎 <strong>Polegar para baixo:</strong> Pausar</li>
+            </ul>
+        </aside>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <p>Desenvolvido por Matheus Siqueira | 
+            <a href="https://github.com/matheusgfeitosa" target="_blank">GitHub</a> | 
+            Powered by MediaPipe & Three.js</p>
+        </footer>
+    </div>
+
+    <!-- Libraries -->
+    <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675469404/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675469404/drawing_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469404/hands.js" crossorigin="anonymous"></script>
+
+    <!-- App Scripts -->
+    <script type="module" src="js/utils.js"></script>
+    <script type="module" src="js/gesture-recognizer.js"></script>
+    <script type="module" src="js/scene-3d.js"></script>
+    <script type="module" src="js/hand-tracker.js"></script>
+    <script type="module" src="js/app.js"></script>
+</body>
+</html>

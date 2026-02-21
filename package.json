@@ -1,0 +1,24 @@
+{
+  "name": "3d-hands-web",
+  "version": "1.0.0",
+  "description": "3D Hand Gesture Recognition - Web Version",
+  "main": "public/index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Static site - no build needed'",
+    "deploy": "vercel --prod"
+  },
+  "keywords": [
+    "hand-tracking",
+    "gesture-recognition",
+    "mediapipe",
+    "threejs",
+    "webgl"
+  ],
+  "author": "Matheus Siqueira",
+  "license": "MIT",
+  "dependencies": {},
+  "devDependencies": {
+    "vercel": "^33.0.0"
+  }
+}
