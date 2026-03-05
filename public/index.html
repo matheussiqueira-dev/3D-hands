@@ -5,75 +5,138 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>3D Hands - Controle por Gestos</title>
     <meta name="description" content="Aplicação de reconhecimento de gestos 3D em tempo real">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600&family=Orbitron:wght@700;800&family=Rajdhani:wght@500;600;700&display=swap"
+        rel="stylesheet"
+    >
     <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+    <div class="background-grid" aria-hidden="true"></div>
     <div id="app-container">
-        <!-- Header -->
-        <header class="header">
-            <h1>🖐️ 3D Hands - Controle por Gestos</h1>
+        <header class="header panel">
+            <div class="header-copy">
+                <span class="eyebrow">ENCOM Gesture Interface</span>
+                <h1>3D Hands</h1>
+                <p class="header-description">
+                    Controle um objeto 3D com gestos em tempo real usando visão computacional,
+                    painel holográfico e telemetria visual inspirada em Tron.
+                </p>
+            </div>
             <div class="status-bar">
-                <span id="fps-counter">FPS: 0</span>
-                <span id="gesture-status">Gesto: Nenhum</span>
-                <span id="camera-status" class="status-offline">📷 Câmera: Offline</span>
+                <span class="status-chip" id="fps-counter">FPS: 0</span>
+                <span class="status-chip" id="gesture-status">Gesto: Nenhum</span>
+                <span class="status-chip status-offline" id="camera-status">Camera: Offline</span>
             </div>
         </header>
 
-        <!-- Main content -->
         <main class="main-content">
-            <!-- Video feed -->
-            <div class="video-container">
-                <video id="webcam" autoplay playsinline></video>
-                <canvas id="output-canvas"></canvas>
-                <div class="controls-overlay">
-                    <button id="start-btn" class="btn btn-primary">Iniciar Câmera</button>
-                    <button id="stop-btn" class="btn btn-danger" disabled>Parar</button>
+            <section class="panel video-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="panel-label">Input Feed</span>
+                        <h2>Leitura de Mãos</h2>
+                    </div>
+                    <span class="panel-badge">MediaPipe Live</span>
                 </div>
-            </div>
-
-            <!-- 3D Scene -->
-            <div class="scene-container">
-                <canvas id="scene-canvas"></canvas>
-                <div class="scene-info">
-                    <div id="object-info">
-                        <p><strong>Objeto:</strong> <span id="object-type">Cubo</span></p>
-                        <p><strong>Posição:</strong> <span id="object-position">0, 0, 0</span></p>
-                        <p><strong>Rotação:</strong> <span id="object-rotation">0°, 0°, 0°</span></p>
-                        <p><strong>Escala:</strong> <span id="object-scale">1.0</span></p>
+                <div class="video-container">
+                    <video id="webcam" autoplay playsinline></video>
+                    <canvas id="output-canvas"></canvas>
+                    <div class="controls-overlay">
+                        <button id="start-btn" class="btn btn-primary">Inicializar Câmera</button>
+                        <button id="stop-btn" class="btn btn-danger" disabled>Encerrar</button>
                     </div>
                 </div>
-            </div>
+            </section>
+
+            <section class="panel scene-panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="panel-label">3D Output</span>
+                        <h2>Objeto Interativo</h2>
+                    </div>
+                    <span class="panel-badge">Three.js</span>
+                </div>
+                <div class="scene-container">
+                    <canvas id="scene-canvas"></canvas>
+                    <div class="scene-info scan-frame">
+                        <div id="object-info" class="telemetry-grid">
+                            <p><strong>Objeto</strong><span id="object-type">Cubo</span></p>
+                            <p><strong>Posição</strong><span id="object-position">0, 0, 0</span></p>
+                            <p><strong>Rotação</strong><span id="object-rotation">0°, 0°, 0°</span></p>
+                            <p><strong>Escala</strong><span id="object-scale">1.0</span></p>
+                        </div>
+                    </div>
+                </div>
+            </section>
         </main>
 
-        <!-- Gesture Guide -->
-        <aside class="gesture-guide">
-            <h3>Guia de Gestos</h3>
-            <ul>
-                <li>✋ <strong>Mão aberta:</strong> Mover objeto em X/Y/Z</li>
-                <li>🤏 <strong>Pinch:</strong> Zoom in/out</li>
-                <li>✌️ <strong>Dois dedos:</strong> Rotação X/Y</li>
-                <li>✊ <strong>Punho (2s):</strong> Reset posição</li>
-                <li>🖖 <strong>Três dedos (0.6s):</strong> Mudar cor</li>
-                <li>👍 <strong>Polegar para cima:</strong> Giro contínuo</li>
-                <li>👎 <strong>Polegar para baixo:</strong> Pausar</li>
-            </ul>
-        </aside>
+        <section class="lower-grid">
+            <aside class="gesture-guide panel">
+                <div class="panel-heading">
+                    <div>
+                        <span class="panel-label">Command Matrix</span>
+                        <h2>Guia de Gestos</h2>
+                    </div>
+                </div>
+                <ul>
+                    <li><strong>Mão aberta</strong><span>Mover objeto em X, Y e Z</span></li>
+                    <li><strong>Pinch</strong><span>Zoom in e zoom out</span></li>
+                    <li><strong>Dois dedos</strong><span>Rotação em X e Y</span></li>
+                    <li><strong>Punho por 2s</strong><span>Reset de posição</span></li>
+                    <li><strong>Três dedos por 0.6s</strong><span>Mudar cor do objeto</span></li>
+                    <li><strong>Polegar para cima</strong><span>Ativar giro contínuo</span></li>
+                    <li><strong>Polegar para baixo</strong><span>Pausar simulação</span></li>
+                </ul>
+            </aside>
 
-        <!-- Footer -->
+            <section class="system-card panel scan-frame">
+                <div class="panel-heading">
+                    <div>
+                        <span class="panel-label">Runtime Status</span>
+                        <h2>Núcleo de Controle</h2>
+                    </div>
+                </div>
+                <p>
+                    Interface otimizada para desktop, tablet e mobile, com microinterações
+                    em CSS, grid holográfico global e renderização 3D em tempo real.
+                </p>
+                <div class="system-metrics">
+                    <span>Vision Tracking</span>
+                    <span>3D Rendering</span>
+                    <span>Gesture Mapping</span>
+                    <span>Low Latency UI</span>
+                </div>
+            </section>
+        </section>
+
         <footer class="footer">
-            <p>Desenvolvido por Matheus Siqueira | 
-            <a href="https://github.com/matheusgfeitosa" target="_blank">GitHub</a> | 
-            Powered by MediaPipe & Three.js</p>
+            <p>Desenvolvido por Matheus Siqueira</p>
+            <a href="https://www.matheussiqueira.dev/" rel="noreferrer" target="_blank">
+                www.matheussiqueira.dev
+            </a>
         </footer>
     </div>
 
-    <!-- Libraries -->
+    <a
+        aria-label="Abrir conversa no WhatsApp"
+        class="whatsapp-button"
+        href="https://wa.me/5581999203683"
+        rel="noreferrer"
+        target="_blank"
+    >
+        <svg aria-hidden="true" fill="currentColor" height="28" viewBox="0 0 24 24" width="28">
+            <path d="M19.05 4.91A9.82 9.82 0 0 0 12.03 2C6.59 2 2.16 6.42 2.16 11.86c0 1.74.45 3.44 1.31 4.94L2 22l5.36-1.4a9.86 9.86 0 0 0 4.67 1.19h.01c5.44 0 9.86-4.42 9.86-9.86a9.8 9.8 0 0 0-2.85-7.02Zm-7.02 15.22h-.01a8.14 8.14 0 0 1-4.15-1.14l-.3-.18-3.18.83.85-3.1-.2-.32a8.16 8.16 0 0 1-1.26-4.34 8.25 8.25 0 0 1 8.25-8.24 8.18 8.18 0 0 1 5.84 2.42 8.2 8.2 0 0 1 2.4 5.84 8.25 8.25 0 0 1-8.24 8.23Zm4.52-6.16c-.25-.13-1.47-.72-1.69-.8-.23-.08-.4-.13-.57.13-.17.25-.65.8-.8.96-.14.17-.3.19-.55.07-.25-.13-1.08-.4-2.06-1.28-.76-.68-1.28-1.51-1.43-1.77-.15-.25-.02-.39.11-.52.11-.11.25-.3.38-.45.13-.15.17-.25.25-.42.08-.17.04-.32-.02-.45-.06-.13-.57-1.37-.78-1.88-.21-.5-.42-.43-.57-.44h-.49c-.17 0-.45.06-.68.32-.23.25-.88.86-.88 2.1 0 1.24.9 2.43 1.03 2.6.13.17 1.77 2.7 4.28 3.79.6.26 1.07.42 1.43.54.6.19 1.14.16 1.57.1.48-.07 1.47-.6 1.67-1.17.21-.58.21-1.08.15-1.18-.06-.1-.23-.16-.48-.28Z"/>
+        </svg>
+    </a>
+
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils@0.3.1675469404/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils@0.3.1675469404/drawing_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469404/hands.js" crossorigin="anonymous"></script>
 
-    <!-- App Scripts -->
     <script type="module" src="js/utils.js"></script>
     <script type="module" src="js/gesture-recognizer.js"></script>
     <script type="module" src="js/scene-3d.js"></script>

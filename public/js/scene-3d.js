@@ -18,8 +18,8 @@ export class Scene3D {
         
         this.currentObject = null;
         this.objectType = 'cube';
-        this.objectColor = 0x667eea;
-        this.colors = [0x667eea, 0xf56565, 0x48bb78, 0xecc94b, 0x9f7aea];
+        this.objectColor = 0x00e5ff;
+        this.colors = [0x00e5ff, 0x33f3ff, 0x00b8d9, 0x6dffbf, 0xff8ea3];
         this.colorIndex = 0;
         
         this.rotation = { x: 0, y: 0, z: 0 };
@@ -42,22 +42,24 @@ export class Scene3D {
         this.camera.position.z = 5;
         
         // Lights
-        const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+        const ambientLight = new THREE.AmbientLight(0x9fefff, 0.55);
         this.scene.add(ambientLight);
         
-        const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+        const directionalLight = new THREE.DirectionalLight(0x00e5ff, 1.4);
         directionalLight.position.set(5, 5, 5);
         this.scene.add(directionalLight);
         
-        const pointLight = new THREE.PointLight(0xffffff, 0.5);
+        const pointLight = new THREE.PointLight(0x33f3ff, 1.2);
         pointLight.position.set(-5, -5, 5);
         this.scene.add(pointLight);
         
-        // Background
-        this.scene.background = new THREE.Color(0x1a202c);
+        const rimLight = new THREE.PointLight(0x00ffff, 0.8);
+        rimLight.position.set(0, 4, -2);
+        this.scene.add(rimLight);
         
-        // Fog for depth
-        this.scene.fog = new THREE.Fog(0x1a202c, 1, 15);
+        this.scene.background = new THREE.Color(0x020406);
+        
+        this.scene.fog = new THREE.Fog(0x020406, 3, 14);
     }
 
     createObject() {
@@ -90,8 +92,10 @@ export class Scene3D {
         
         const material = new THREE.MeshStandardMaterial({
             color: this.objectColor,
-            metalness: 0.5,
-            roughness: 0.3,
+            emissive: this.objectColor,
+            emissiveIntensity: 0.22,
+            metalness: 0.72,
+            roughness: 0.18,
             flatShading: false
         });
         
@@ -195,6 +199,7 @@ export class Scene3D {
         
         if (this.currentObject && this.currentObject.material) {
             this.currentObject.material.color.setHex(this.objectColor);
+            this.currentObject.material.emissive.setHex(this.objectColor);
         }
     }
 

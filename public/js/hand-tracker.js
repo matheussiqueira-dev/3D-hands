@@ -141,8 +141,8 @@ export class HandTracker {
     }
 
     drawLandmarks(ctx, landmarks) {
-        ctx.fillStyle = '#00FF00';
-        ctx.strokeStyle = '#00FF00';
+        ctx.fillStyle = '#00E5FF';
+        ctx.strokeStyle = '#00E5FF';
         ctx.lineWidth = 2;
 
         for (const landmark of landmarks) {
@@ -165,7 +165,7 @@ export class HandTracker {
             [5, 9], [9, 13], [13, 17]              // Palm
         ];
 
-        ctx.strokeStyle = '#00FF00';
+        ctx.strokeStyle = '#33F3FF';
         ctx.lineWidth = 2;
 
         for (const [start, end] of connections) {
