@@ -1,8 +1,20 @@
-opencv-python
-mediapipe
-numpy
-scikit-learn
-joblib
-pandas
-pygame
-PyOpenGL
+# 3D Hands — Python Dependencies
+# Author: Matheus Siqueira <https://www.matheussiqueira.dev/>
+# Pin versions for reproducible environments
+
+# Computer vision & hand tracking
+opencv-python==4.9.0.80
+mediapipe==0.10.14
+
+# Numerical computing
+numpy==1.26.4
+
+# Machine learning
+scikit-learn==1.4.2
+joblib==1.4.2
+pandas==2.2.2
+
+# Rendering & UI
+pygame==2.5.2
+PyOpenGL==3.1.7
+PyOpenGL-accelerate==3.1.7
