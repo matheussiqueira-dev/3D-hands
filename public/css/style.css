@@ -578,3 +578,88 @@ p, li, span, button, a {
         height: 56px;
     }
 }
+
+/* ─── Gesture History Panel ──────────────────────────────────────────────── */
+
+.history-panel { grid-column: 1 / -1; }
+
+.history-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    max-height: 220px;
+    overflow-y: auto;
+    scrollbar-width: thin;
+    scrollbar-color: var(--primary-color, #00ffff) transparent;
+}
+
+.history-list::-webkit-scrollbar       { width: 4px; }
+.history-list::-webkit-scrollbar-thumb { background: var(--primary-color, #00ffff); border-radius: 2px; }
+
+.history-entry {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 6px 10px;
+    border-bottom: 1px solid rgba(0, 255, 255, 0.08);
+    animation: fadeInDown 0.2s ease;
+}
+
+.history-entry:last-child  { border-bottom: none; }
+
+.history-gesture {
+    color: var(--primary-color, #00ffff);
+    font-family: 'Rajdhani', sans-serif;
+    font-size: 0.9rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.history-meta {
+    color: rgba(255, 255, 255, 0.45);
+    font-size: 0.75rem;
+}
+
+.history-empty {
+    color: rgba(255, 255, 255, 0.3);
+    padding: 16px 10px;
+    font-size: 0.85rem;
+    text-align: center;
+}
+
+@keyframes fadeInDown {
+    from { opacity: 0; transform: translateY(-6px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ─── Keyboard Shortcuts Panel ───────────────────────────────────────────── */
+
+.shortcuts-panel { grid-column: 1 / -1; }
+
+.shortcuts-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 24px;
+}
+
+.shortcuts-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 0.85rem;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+kbd {
+    background: rgba(0, 255, 255, 0.08);
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    border-radius: 4px;
+    padding: 2px 7px;
+    font-family: 'Rajdhani', monospace;
+    font-size: 0.78rem;
+    color: var(--primary-color, #00ffff);
+    white-space: nowrap;
+}
