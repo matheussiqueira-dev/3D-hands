@@ -1,245 +1,158 @@
-// app.js - Main application logic
+/**
+ * Main Application Orchestrator
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ */
 
-import { FPSCounter, Smoother } from './utils.js';
-import { GestureRecognizer } from './gesture-recognizer.js';
-import { Scene3D } from './scene-3d.js';
-import { HandTracker } from './hand-tracker.js';
+import { HandTracker } from "./hand-tracker.js";
+import { GestureRecognizer } from "./gesture-recognizer.js";
+import { Scene3D } from "./scene-3d.js";
+import { FPSCounter, generateSessionId, throttle } from "./utils.js";
+import { API_CONFIG, UI_CONFIG } from "./config.js";
 
-class App {
-    constructor() {
-        // DOM elements
-        this.startBtn = document.getElementById('start-btn');
-        this.stopBtn = document.getElementById('stop-btn');
-        this.webcamVideo = document.getElementById('webcam');
-        this.outputCanvas = document.getElementById('output-canvas');
-        this.sceneCanvas = document.getElementById('scene-canvas');
-        
-        // Status displays
-        this.fpsCounter = document.getElementById('fps-counter');
-        this.gestureStatus = document.getElementById('gesture-status');
-        this.cameraStatus = document.getElementById('camera-status');
-        this.objectType = document.getElementById('object-type');
-        this.objectPosition = document.getElementById('object-position');
-        this.objectRotation = document.getElementById('object-rotation');
-        this.objectScale = document.getElementById('object-scale');
-        
-        // Components
-        this.handTracker = null;
-        this.gestureRecognizer = new GestureRecognizer();
-        this.scene3d = new Scene3D(this.sceneCanvas);
-        this.fpsCounterUtil = new FPSCounter();
-        this.positionSmoother = new Smoother(3);
-        
-        // State
-        this.lastHandData = null;
-        this.lastGesture = 'none';
-        this.gestureActions = {
-            'fist': () => this.scene3d.reset(),
-            'three_fingers': () => this.scene3d.changeColor(),
-            'v_sign': () => this.scene3d.changeObjectType(),
-            'thumbs_up': () => this.scene3d.toggleAutoRotate(),
-            'thumbs_down': () => this.scene3d.togglePause()
-        };
-        
-        this.initialize();
+export class App {
+  constructor() {
+    this._sessionId  = generateSessionId(API_CONFIG.SESSION_ID_LENGTH);
+    this._fps        = new FPSCounter(60);
+    this._recognizer = new GestureRecognizer();
+    this._history    = [];
+    this._lastGesture = null;
+    this._running    = false;
+    this._dom        = {};
+    this._logGesture = throttle((g, c) => this._postGestureEvent(g, c), API_CONFIG.LOG_INTERVAL_MS);
+  }
+  async init() {
+    this._bindDom();
+    this._initScene();
+    this._initTracker();
+    this._bindKeyboard();
+    this._bindButtons();
+    this._startTelemetry();
+    this._setStatus("ready", "System ready");
+  }
+
+  _bindDom() {
+    var ids=["video","overlay-canvas","scene-canvas","fps-display","gesture-display","status-text","start-btn","stop-btn","history-list"];
+    for(var id of ids){var el=document.getElementById(id);if(!el)console.warn("[App] #"+id+" not found");this._dom[id]=el;}
+  }
+
+  _initScene() {
+    var canvas=this._dom["scene-canvas"];
+    if(!canvas)return;
+    this._scene=new Scene3D(canvas);
+    try{this._scene.init();this._scene.animate();}catch(err){this._setStatus("error","3D scene failed: "+err.message);}
+  }
+
+  _initTracker() {
+    var video=this._dom["video"],overlay=this._dom["overlay-canvas"];
+    if(!video||!overlay)return;
+    this._tracker=new HandTracker(video,overlay);
+    this._tracker.onResults(r=>this._handleResult(r));
+    this._tracker.onError(err=>{this._setStatus("error",err.message);});
+  }
+
+  _handleResult(result) {
+    this._fps.tick();
+    var hand1=result.hands[0]?.landmarks??null;
+    var hand2=result.hands[1]?.landmarks??null;
+    if(!hand1){this._recognizer.reset();this._updateGestureDisplay("no hands");return;}
+    var gestures=this._recognizer.recognize(hand1,hand2);
+    var primary=this._recognizer.getPrimaryGesture(gestures);
+    if(primary?.active){this._applyToScene(primary);this._updateGestureDisplay(primary.name,primary.confidence);this._recordHistory(primary.name,primary.confidence);this._logGesture(primary.name,primary.confidence);}else{this._updateGestureDisplay("tracking...");}
+  }
+
+  _applyToScene(gesture) {
+    if(!this._scene)return;
+    switch(gesture.name){
+      case "open_palm":this._scene.translate(gesture.data.delta);this._scene.setAutoRotate(false);break;
+      case "pinch":this._scene.zoom(gesture.data.distance<0.03?-1:1);break;
+      case "two_fingers":this._scene.rotate(gesture.data.angle*0.05);break;
+      case "fist":this._scene.reset();this._setStatus("info","Reset via fist");break;
+      case "v_sign":this._scene.nextShape();this._recognizer.resetTimer("v_sign");this._setStatus("info","Shape: "+this._scene.currentShape);break;
+      case "three_fingers":this._scene.nextColor();this._recognizer.resetTimer("three_fingers");break;
+      case "dual_hands":if(gesture.data?.scaleDelta)this._scene.zoom(gesture.data.scaleDelta*10);break;
     }
+  }
 
-    async initialize() {
-        console.log('Initializing 3D Hands application...');
-        
-        // Setup event listeners
-        this.startBtn.addEventListener('click', () => this.start());
-        this.stopBtn.addEventListener('click', () => this.stop());
-        
-        // Handle window resize
-        window.addEventListener('resize', () => {
-            this.scene3d.updateSize();
-        });
-        
-        // Initialize hand tracker
-        this.handTracker = new HandTracker(
-            this.webcamVideo,
-            this.outputCanvas,
-            (results) => this.onHandResults(results)
-        );
-        
-        const initialized = await this.handTracker.initialize();
-        if (!initialized) {
-            alert('Erro ao inicializar MediaPipe. Verifique sua conexão.');
-        }
-        
-        // Start render loop
-        this.render();
-        
-        console.log('Application initialized');
-    }
+  _bindKeyboard() {
+    var map={
+      ArrowUp:()=>this._scene?.translate({x:0,y:-0.05}),
+      ArrowDown:()=>this._scene?.translate({x:0,y:0.05}),
+      ArrowLeft:()=>this._scene?.translate({x:-0.05,y:0}),
+      ArrowRight:()=>this._scene?.translate({x:0.05,y:0}),
+      r:()=>{this._scene?.reset();this._setStatus("info","Reset via keyboard");},
+      n:()=>{this._scene?.nextShape();this._setStatus("info","Shape: "+this._scene?.currentShape);},
+      c:()=>this._scene?.nextColor(),
+      "+":()=>this._scene?.zoom(1),
+      "-":()=>this._scene?.zoom(-1),
+      " ":()=>this._scene?.setAutoRotate(true),
+      Escape:()=>this.stop(),
+    };
+    document.addEventListener("keydown",e=>{var h=map[e.key];if(h){e.preventDefault();h();}});
+  }
 
-    async start() {
-        console.log('Starting application...');
-        
-        this.startBtn.disabled = true;
-        this.stopBtn.disabled = false;
-        
-        const started = await this.handTracker.start();
-        
-        if (started) {
-            this.updateCameraStatus(true);
-        } else {
-            this.startBtn.disabled = false;
-            this.stopBtn.disabled = true;
-        }
-    }
+  _bindButtons() {
+    this._dom["start-btn"]?.addEventListener("click",()=>this.start());
+    this._dom["stop-btn"]?.addEventListener("click",()=>this.stop());
+  }
 
-    stop() {
-        console.log('Stopping application...');
-        
-        this.handTracker.stop();
-        
-        this.startBtn.disabled = false;
-        this.stopBtn.disabled = true;
-        
-        this.updateCameraStatus(false);
-    }
+  async start() {
+    if(this._running)return;
+    this._running=true;
+    this._setStatus("loading","Initializing camera and hand tracking model...");
+    await this._tracker?.start();
+    this._setStatus("active","Hand tracking active");
+    if(this._dom["start-btn"])this._dom["start-btn"].disabled=true;
+    if(this._dom["stop-btn"])this._dom["stop-btn"].disabled=false;
+  }
 
-    onHandResults(results) {
-        if (!results.multiHandLandmarks || results.multiHandLandmarks.length === 0) {
-            this.lastHandData = null;
-            return;
-        }
-        
-        // Recognize gesture
-        const gesture = this.gestureRecognizer.recognize(results.multiHandLandmarks);
-        
-        // Execute gesture actions
-        if (gesture !== this.lastGesture && gesture !== 'none') {
-            console.log('Gesture detected:', gesture);
-            
-            if (this.gestureActions[gesture]) {
-                this.gestureActions[gesture]();
-            }
-        }
-        
-        this.lastGesture = gesture;
-        
-        // Get gesture data for object control
-        const hand = results.multiHandLandmarks[0];
-        const gestureData = this.gestureRecognizer.getGestureData(hand);
-        
-        // Control 3D object based on gesture
-        this.controlObject(gesture, gestureData);
-        
-        // Store hand data
-        this.lastHandData = {
-            gesture,
-            data: gestureData
-        };
-    }
+  stop() {
+    if(!this._running)return;
+    this._running=false;
+    this._tracker?.stop();
+    this._recognizer.reset();
+    this._setStatus("ready","Tracking stopped");
+    if(this._dom["start-btn"])this._dom["start-btn"].disabled=false;
+    if(this._dom["stop-btn"])this._dom["stop-btn"].disabled=true;
+  }
 
-    controlObject(gesture, data) {
-        if (!data) return;
-        
-        const scene = this.scene3d;
-        
-        switch (gesture) {
-            case 'open_palm':
-                // Move object with palm
-                if (this.lastHandData) {
-                    const dx = data.palmCenter.x - this.lastHandData.data.palmCenter.x;
-                    const dy = data.palmCenter.y - this.lastHandData.data.palmCenter.y;
-                    const dz = data.palmCenter.z - this.lastHandData.data.palmCenter.z;
-                    
-                    const smoothed = this.positionSmoother.smooth({ x: dx, y: dy, z: dz });
-                    scene.translate(smoothed.x, smoothed.y, smoothed.z);
-                }
-                break;
-                
-            case 'pinch':
-                // Zoom with pinch
-                if (this.lastHandData) {
-                    const currentDist = data.pinchDistance;
-                    const lastDist = this.lastHandData.data.pinchDistance;
-                    const delta = (currentDist - lastDist) * 2;
-                    scene.zoom(delta);
-                }
-                break;
-                
-            case 'two_fingers':
-                // Rotate with two fingers
-                if (this.lastHandData) {
-                    const dx = data.twoFingerMidpoint.x - this.lastHandData.data.twoFingerMidpoint.x;
-                    const dy = data.twoFingerMidpoint.y - this.lastHandData.data.twoFingerMidpoint.y;
-                    scene.rotate(dx, dy);
-                }
-                break;
-        }
-    }
+  _recordHistory(gesture,confidence) {
+    if(gesture===this._lastGesture)return;
+    this._lastGesture=gesture;
+    this._history.unshift({gesture,confidence:Math.round(confidence*100),timestamp:new Date().toLocaleTimeString()});
+    if(this._history.length>UI_CONFIG.HISTORY_MAX_ENTRIES)this._history.pop();
+    this._renderHistory();
+  }
 
-    render() {
-        requestAnimationFrame(() => this.render());
-        
-        // Update FPS
-        const fps = this.fpsCounterUtil.update();
-        this.fpsCounter.textContent = `FPS: ${fps}`;
-        
-        // Update gesture status
-        if (this.lastHandData) {
-            this.gestureStatus.textContent = `Gesto: ${this.formatGestureName(this.lastHandData.gesture)}`;
-        } else {
-            this.gestureStatus.textContent = 'Gesto: Nenhum';
-        }
-        
-        // Update object info
-        const state = this.scene3d.getState();
-        this.objectType.textContent = this.formatObjectType(state.type);
-        this.objectPosition.textContent = `${state.position.x.toFixed(2)}, ${state.position.y.toFixed(2)}, ${state.position.z.toFixed(2)}`;
-        this.objectRotation.textContent = `${state.rotation.x.toFixed(0)}°, ${state.rotation.y.toFixed(0)}°, ${state.rotation.z.toFixed(0)}°`;
-        this.objectScale.textContent = state.scale.toFixed(2);
-    }
+  _renderHistory() {
+    var list=this._dom["history-list"];
+    if(!list)return;
+    list.innerHTML=this._history.map(e=>
+      "<li class="history-entry"><span class="history-gesture">"+(e.gesture.replace(/_/g," "))+"</span><span class="history-meta">"+(e.confidence)+"% &middot; "+(e.timestamp)+"</span></li>"
+    ).join("");
+  }
 
-    updateCameraStatus(online) {
-        if (online) {
-            this.cameraStatus.textContent = '📷 Câmera: Online';
-            this.cameraStatus.classList.remove('status-offline');
-            this.cameraStatus.classList.add('status-online');
-        } else {
-            this.cameraStatus.textContent = '📷 Câmera: Offline';
-            this.cameraStatus.classList.remove('status-online');
-            this.cameraStatus.classList.add('status-offline');
-        }
-    }
+  async _postGestureEvent(gesture,confidence) {
+    try{
+      var res=await fetch(API_CONFIG.GESTURE_ENDPOINT,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({gesture,sessionId:this._sessionId,metadata:{confidence:Math.round(confidence*100)}})});
+      if(!res.ok)console.warn("[App] API failed:",res.status);
+    }catch(err){console.debug("[App] API unreachable:",err?.message);}
+  }
 
-    formatGestureName(gesture) {
-        const names = {
-            'none': 'Nenhum',
-            'open_palm': 'Mão Aberta',
-            'pinch': 'Pinch (Zoom)',
-            'two_fingers': 'Dois Dedos (Rotação)',
-            'fist': 'Punho (Reset)',
-            'three_fingers': 'Três Dedos (Cor)',
-            'v_sign': 'Sinal V (Objeto)',
-            'thumbs_up': 'Polegar para Cima',
-            'thumbs_down': 'Polegar para Baixo'
-        };
-        return names[gesture] || gesture;
-    }
+  _updateGestureDisplay(gesture,confidence) {
+    var el=this._dom["gesture-display"];
+    if(!el)return;
+    el.textContent=confidence?gesture.replace(/_/g," ")+" ("+Math.round(confidence*100)+"%)":gesture;
+  }
 
-    formatObjectType(type) {
-        const types = {
-            'cube': 'Cubo',
-            'sphere': 'Esfera',
-            'cone': 'Cone',
-            'torus': 'Toroide',
-            'dodecahedron': 'Dodecaedro'
-        };
-        return types[type] || type;
-    }
+  _setStatus(type,message) {
+    var el=this._dom["status-text"];
+    if(el){el.textContent=message;el.dataset.type=type;}
+    console.log("[App]["+type.toUpperCase()+"] "+message);
+  }
+
+  _startTelemetry() {
+    setInterval(()=>{var el=this._dom["fps-display"];if(el)el.textContent=this._fps.value+" FPS";},UI_CONFIG.FPS_UPDATE_INTERVAL_MS);
+  }
 }
 
-// Initialize app when DOM is ready
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => {
-        window.app = new App();
-    });
-} else {
-    window.app = new App();
-}
+document.addEventListener("DOMContentLoaded",async()=>{const app=new App();await app.init();window.__app=app;});
