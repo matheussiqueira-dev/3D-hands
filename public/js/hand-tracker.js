@@ -1,192 +1,165 @@
-// hand-tracker.js - MediaPipe hand tracking
+/**
+ * Browser Hand Tracking — MediaPipe Hands Wrapper
+ * Manages camera stream, MediaPipe model lifecycle, and landmark extraction.
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @module  hand-tracker
+ */
+
+import { CAMERA_CONFIG, TRACKING_CONFIG } from './config.js';
 
 export class HandTracker {
-    constructor(videoElement, canvasElement, onResults) {
-        this.videoElement = videoElement;
-        this.canvasElement = canvasElement;
-        this.onResults = onResults;
-        this.hands = null;
-        this.camera = null;
-        this.isRunning = false;
+  constructor(videoEl, overlayEl, camCfg = {}, trackCfg = {}) {
+    if (!(videoEl instanceof HTMLVideoElement))    throw new TypeError('videoEl must be an HTMLVideoElement');
+    if (!(overlayEl instanceof HTMLCanvasElement)) throw new TypeError('overlayEl must be an HTMLCanvasElement');
+    this._video    = videoEl;
+    this._canvas   = overlayEl;
+    this._ctx      = overlayEl.getContext('2d');
+    this._camCfg   = { ...CAMERA_CONFIG,   ...camCfg   };
+    this._trackCfg = { ...TRACKING_CONFIG, ...trackCfg };
+    this._resultCbs  = [];
+    this._errorCbs   = [];
+    this._stream     = null;
+    this._hands      = null;
+    this._rafHandle  = null;
+    this._running    = false;
+    this._initialized = false;
+  }
+
+  onResults(cb) {
+    if (typeof cb !== 'function') throw new TypeError('onResults callback must be a function');
+    this._resultCbs.push(cb);
+  }
+
+  onError(cb) {
+    if (typeof cb !== 'function') throw new TypeError('onError callback must be a function');
+    this._errorCbs.push(cb);
+  }
+
+  async start() {
+    if (this._running) return;
+    try {
+      await this._initMediaPipe();
+      await this._startCamera();
+      this._running = true;
+      this._scheduleFrame();
+    } catch (err) {
+      this._emitError(err instanceof Error ? err : new Error(String(err)));
     }
+  }
 
-    async initialize() {
-        try {
-            // Initialize MediaPipe Hands
-            this.hands = new Hands({
-                locateFile: (file) => {
-                    return `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469404/${file}`;
-                }
-            });
+  stop() {
+    this._running = false;
+    if (this._rafHandle !== null) { cancelAnimationFrame(this._rafHandle); this._rafHandle = null; }
+    if (this._stream)  { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+    if (this._hands)   { try { this._hands.close?.(); } catch {} this._hands = null; }
+    this._initialized = false;
+    this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+  }
 
-            this.hands.setOptions({
-                maxNumHands: 2,
-                modelComplexity: 1,
-                minDetectionConfidence: 0.7,
-                minTrackingConfidence: 0.5
-            });
+  get isRunning() { return this._running; }
 
-            this.hands.onResults((results) => this.handleResults(results));
+  async _initMediaPipe() {
+    if (this._initialized) return;
+    if (typeof window.Hands === 'undefined')
+      throw new Error('MediaPipe Hands is not loaded. Ensure the CDN script is included.');
+    this._hands = new window.Hands({
+      locateFile: file => 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/' + file,
+    });
+    this._hands.setOptions({
+      maxNumHands:            this._trackCfg.MAX_HANDS,
+      modelComplexity:        this._trackCfg.MODEL_COMPLEXITY,
+      minDetectionConfidence: this._trackCfg.MIN_DETECTION_CONF,
+      minTrackingConfidence:  this._trackCfg.MIN_TRACKING_CONF,
+    });
+    this._hands.onResults(raw => this._handleRawResults(raw));
+    await this._hands.initialize();
+    this._initialized = true;
+  }
 
-            console.log('MediaPipe Hands initialized successfully');
-            return true;
-        } catch (error) {
-            console.error('Error initializing MediaPipe:', error);
-            return false;
-        }
+  async _startCamera() {
+    if (!navigator.mediaDevices?.getUserMedia)
+      throw new Error('Camera API (getUserMedia) is not available in this browser or context.');
+    const constraints = {
+      video: {
+        facingMode: this._camCfg.FACING_MODE,
+        width:      { ideal: this._camCfg.WIDTH  },
+        height:     { ideal: this._camCfg.HEIGHT },
+        frameRate:  { ideal: this._camCfg.IDEAL_FPS, max: this._camCfg.MAX_FPS },
+      },
+    };
+    try {
+      this._stream = await navigator.mediaDevices.getUserMedia(constraints);
+    } catch (err) {
+      if (err.name === 'NotAllowedError') throw new Error('Camera access was denied by the user.');
+      if (err.name === 'NotFoundError')   throw new Error('No camera device found.');
+      throw err;
     }
+    this._video.srcObject = this._stream;
+    await new Promise((resolve, reject) => {
+      this._video.onloadedmetadata = () => {
+        this._canvas.width  = this._video.videoWidth;
+        this._canvas.height = this._video.videoHeight;
+        resolve();
+      };
+      this._video.onerror = () => reject(new Error('Video element failed to load camera stream'));
+      this._video.play().catch(reject);
+    });
+  }
 
-    async start() {
-        if (this.isRunning) {
-            console.warn('Hand tracker already running');
-            return;
-        }
+  _scheduleFrame() {
+    if (!this._running) return;
+    this._rafHandle = requestAnimationFrame(() => this._processFrame());
+  }
 
-        try {
-            // Get camera stream
-            const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                    width: { ideal: 1280 },
-                    height: { ideal: 720 },
-                    facingMode: 'user'
-                }
-            });
-
-            this.videoElement.srcObject = stream;
-            
-            // Wait for video to load
-            await new Promise((resolve) => {
-                this.videoElement.onloadedmetadata = () => {
-                    resolve();
-                };
-            });
-
-            await this.videoElement.play();
-
-            // Setup canvas size
-            this.canvasElement.width = this.videoElement.videoWidth;
-            this.canvasElement.height = this.videoElement.videoHeight;
-
-            // Start camera utils
-            this.camera = new Camera(this.videoElement, {
-                onFrame: async () => {
-                    if (this.hands) {
-                        await this.hands.send({ image: this.videoElement });
-                    }
-                },
-                width: 1280,
-                height: 720
-            });
-
-            await this.camera.start();
-            this.isRunning = true;
-
-            console.log('Hand tracking started');
-            return true;
-        } catch (error) {
-            console.error('Error starting camera:', error);
-            alert('Erro ao acessar a câmera. Verifique as permissões.');
-            return false;
-        }
+  async _processFrame() {
+    if (!this._running || !this._hands || this._video.readyState < 2) {
+      this._scheduleFrame(); return;
     }
+    try { await this._hands.send({ image: this._video }); }
+    catch (err) { this._emitError(new Error('Frame processing error: ' + (err?.message ?? err))); }
+    this._scheduleFrame();
+  }
 
-    stop() {
-        if (!this.isRunning) return;
-
-        // Stop camera
-        if (this.camera) {
-            this.camera.stop();
-            this.camera = null;
-        }
-
-        // Stop video stream
-        if (this.videoElement.srcObject) {
-            const tracks = this.videoElement.srcObject.getTracks();
-            tracks.forEach(track => track.stop());
-            this.videoElement.srcObject = null;
-        }
-
-        this.isRunning = false;
-        console.log('Hand tracking stopped');
+  _handleRawResults(rawResults) {
+    this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+    const hands = [];
+    const multiLandmarks  = rawResults.multiHandLandmarks  ?? [];
+    const multiHandedness = rawResults.multiHandedness     ?? [];
+    for (let i = 0; i < multiLandmarks.length; i++) {
+      const landmarks  = multiLandmarks[i];
+      const handedness = multiHandedness[i];
+      if (!landmarks || landmarks.length !== 21) continue;
+      this._drawHandOverlay(landmarks);
+      hands.push({ landmarks, handedness: handedness?.label ?? 'Unknown', confidence: handedness?.score ?? 0 });
     }
+    const result = { hands, timestamp: performance.now() };
+    this._resultCbs.forEach(cb => { try { cb(result); } catch {} });
+  }
 
-    handleResults(results) {
-        // Clear canvas
-        const ctx = this.canvasElement.getContext('2d');
-        ctx.save();
-        ctx.clearRect(0, 0, this.canvasElement.width, this.canvasElement.height);
-
-        // Draw video frame
-        ctx.drawImage(
-            results.image,
-            0, 0,
-            this.canvasElement.width,
-            this.canvasElement.height
-        );
-
-        // Draw hand landmarks
-        if (results.multiHandLandmarks) {
-            for (const landmarks of results.multiHandLandmarks) {
-                this.drawLandmarks(ctx, landmarks);
-                this.drawConnections(ctx, landmarks);
-            }
-        }
-
-        ctx.restore();
-
-        // Call callback with results
-        if (this.onResults) {
-            this.onResults(results);
-        }
+  _drawHandOverlay(landmarks) {
+    const W = this._canvas.width, H = this._canvas.height;
+    if (window.HAND_CONNECTIONS) {
+      this._ctx.strokeStyle = this._trackCfg.CONNECTION_COLOR;
+      this._ctx.lineWidth   = this._trackCfg.CONNECTION_LINE_WIDTH;
+      for (const [a, b] of window.HAND_CONNECTIONS) {
+        const pa = landmarks[a], pb = landmarks[b];
+        if (!pa || !pb) continue;
+        this._ctx.beginPath();
+        this._ctx.moveTo(pa.x * W, pa.y * H);
+        this._ctx.lineTo(pb.x * W, pb.y * H);
+        this._ctx.stroke();
+      }
     }
-
-    drawLandmarks(ctx, landmarks) {
-        ctx.fillStyle = '#00E5FF';
-        ctx.strokeStyle = '#00E5FF';
-        ctx.lineWidth = 2;
-
-        for (const landmark of landmarks) {
-            const x = landmark.x * this.canvasElement.width;
-            const y = landmark.y * this.canvasElement.height;
-
-            ctx.beginPath();
-            ctx.arc(x, y, 5, 0, 2 * Math.PI);
-            ctx.fill();
-        }
+    this._ctx.fillStyle = this._trackCfg.LANDMARK_COLOR;
+    for (const lm of landmarks) {
+      this._ctx.beginPath();
+      this._ctx.arc(lm.x * W, lm.y * H, this._trackCfg.LANDMARK_RADIUS, 0, Math.PI * 2);
+      this._ctx.fill();
     }
+  }
 
-    drawConnections(ctx, landmarks) {
-        const connections = [
-            [0, 1], [1, 2], [2, 3], [3, 4],        // Thumb
-            [0, 5], [5, 6], [6, 7], [7, 8],        // Index
-            [0, 9], [9, 10], [10, 11], [11, 12],   // Middle
-            [0, 13], [13, 14], [14, 15], [15, 16], // Ring
-            [0, 17], [17, 18], [18, 19], [19, 20], // Pinky
-            [5, 9], [9, 13], [13, 17]              // Palm
-        ];
-
-        ctx.strokeStyle = '#33F3FF';
-        ctx.lineWidth = 2;
-
-        for (const [start, end] of connections) {
-            const startLandmark = landmarks[start];
-            const endLandmark = landmarks[end];
-
-            const startX = startLandmark.x * this.canvasElement.width;
-            const startY = startLandmark.y * this.canvasElement.height;
-            const endX = endLandmark.x * this.canvasElement.width;
-            const endY = endLandmark.y * this.canvasElement.height;
-
-            ctx.beginPath();
-            ctx.moveTo(startX, startY);
-            ctx.lineTo(endX, endY);
-            ctx.stroke();
-        }
-    }
-
-    setMaxHands(num) {
-        if (this.hands) {
-            this.hands.setOptions({ maxNumHands: num });
-        }
-    }
+  _emitError(err) {
+    console.error('[HandTracker]', err.message);
+    this._errorCbs.forEach(cb => { try { cb(err); } catch {} });
+  }
 }
