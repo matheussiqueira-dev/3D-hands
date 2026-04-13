@@ -1,224 +1,177 @@
-// scene-3d.js - Three.js 3D scene management
+/**
+ * Three.js 3D Scene Manager
+ * Manages WebGL scene, object lifecycle, and gesture-driven transforms.
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @module  scene-3d
+ */
+
+import { SCENE_CONFIG, COLOR_PALETTE } from './config.js';
+
+const SHAPE_REGISTRY = [
+  { name: 'cube',         factory: () => new THREE.BoxGeometry(1.5, 1.5, 1.5) },
+  { name: 'sphere',       factory: () => new THREE.SphereGeometry(0.9, 32, 32) },
+  { name: 'cone',         factory: () => new THREE.ConeGeometry(0.9, 1.8, 32) },
+  { name: 'torus',        factory: () => new THREE.TorusGeometry(0.7, 0.3, 16, 100) },
+  { name: 'dodecahedron', factory: () => new THREE.DodecahedronGeometry(0.9) },
+];
+
+const COLOR_CYCLE = [
+  COLOR_PALETTE.CYAN, COLOR_PALETTE.ORANGE, COLOR_PALETTE.GREEN,
+  COLOR_PALETTE.PURPLE, COLOR_PALETTE.BLUE,
+];
 
 export class Scene3D {
-    constructor(canvas) {
-        this.canvas = canvas;
-        this.scene = new THREE.Scene();
-        this.camera = new THREE.PerspectiveCamera(
-            75, 
-            canvas.width / canvas.height, 
-            0.1, 
-            1000
-        );
-        this.renderer = new THREE.WebGLRenderer({ 
-            canvas: canvas, 
-            antialias: true,
-            alpha: true
-        });
-        
-        this.currentObject = null;
-        this.objectType = 'cube';
-        this.objectColor = 0x00e5ff;
-        this.colors = [0x00e5ff, 0x33f3ff, 0x00b8d9, 0x6dffbf, 0xff8ea3];
-        this.colorIndex = 0;
-        
-        this.rotation = { x: 0, y: 0, z: 0 };
-        this.position = { x: 0, y: 0, z: 0 };
-        this.scale = 1.0;
-        
-        this.autoRotate = false;
-        this.paused = false;
-        
-        this.setupScene();
-        this.createObject();
-        this.animate();
-    }
+  constructor(canvas, cfg = {}) {
+    if (!(canvas instanceof HTMLCanvasElement)) throw new TypeError('canvas must be an HTMLCanvasElement');
+    this._canvas  = canvas;
+    this._cfg     = { ...SCENE_CONFIG, ...cfg };
+    this._scene   = null; this._camera  = null;
+    this._renderer = null; this._mesh    = null;
+    this._shapeIndex = 0; this._colorIndex = 0;
+    this._autoRotate = true; this._rafHandle = null;
+    this._position = { x: 0, y: 0, z: 0 };
+    this._rotation = { x: 0, y: 0, z: 0 };
+    this._scale    = 1.0;
+  }
 
-    setupScene() {
-        // Set renderer size
-        this.updateSize();
-        
-        // Camera position
-        this.camera.position.z = 5;
-        
-        // Lights
-        const ambientLight = new THREE.AmbientLight(0x9fefff, 0.55);
-        this.scene.add(ambientLight);
-        
-        const directionalLight = new THREE.DirectionalLight(0x00e5ff, 1.4);
-        directionalLight.position.set(5, 5, 5);
-        this.scene.add(directionalLight);
-        
-        const pointLight = new THREE.PointLight(0x33f3ff, 1.2);
-        pointLight.position.set(-5, -5, 5);
-        this.scene.add(pointLight);
-        
-        const rimLight = new THREE.PointLight(0x00ffff, 0.8);
-        rimLight.position.set(0, 4, -2);
-        this.scene.add(rimLight);
-        
-        this.scene.background = new THREE.Color(0x020406);
-        
-        this.scene.fog = new THREE.Fog(0x020406, 3, 14);
-    }
+  init() {
+    if (!this._isWebGLSupported()) throw new Error('WebGL is not supported in this browser or context.');
+    this._initRenderer();
+    this._initScene();
+    this._initCamera();
+    this._initLights();
+    this._spawnMesh();
+    this._initResizeObserver();
+  }
 
-    createObject() {
-        // Remove old object
-        if (this.currentObject) {
-            this.scene.remove(this.currentObject);
-        }
-        
-        let geometry;
-        
-        switch (this.objectType) {
-            case 'cube':
-                geometry = new THREE.BoxGeometry(2, 2, 2);
-                break;
-            case 'sphere':
-                geometry = new THREE.SphereGeometry(1.2, 32, 32);
-                break;
-            case 'cone':
-                geometry = new THREE.ConeGeometry(1, 2, 32);
-                break;
-            case 'torus':
-                geometry = new THREE.TorusGeometry(1, 0.4, 16, 100);
-                break;
-            case 'dodecahedron':
-                geometry = new THREE.DodecahedronGeometry(1.2);
-                break;
-            default:
-                geometry = new THREE.BoxGeometry(2, 2, 2);
-        }
-        
-        const material = new THREE.MeshStandardMaterial({
-            color: this.objectColor,
-            emissive: this.objectColor,
-            emissiveIntensity: 0.22,
-            metalness: 0.72,
-            roughness: 0.18,
-            flatShading: false
-        });
-        
-        this.currentObject = new THREE.Mesh(geometry, material);
-        this.scene.add(this.currentObject);
-        
-        // Apply current transformations
-        this.applyTransformations();
-    }
+  animate() {
+    const loop = () => { this._rafHandle = requestAnimationFrame(loop); this._tick(); };
+    loop();
+  }
 
-    applyTransformations() {
-        if (!this.currentObject) return;
-        
-        this.currentObject.position.set(this.position.x, this.position.y, this.position.z);
-        this.currentObject.rotation.set(
-            this.rotation.x * Math.PI / 180,
-            this.rotation.y * Math.PI / 180,
-            this.rotation.z * Math.PI / 180
-        );
-        this.currentObject.scale.set(this.scale, this.scale, this.scale);
-    }
+  dispose() {
+    if (this._rafHandle !== null) { cancelAnimationFrame(this._rafHandle); this._rafHandle = null; }
+    this._mesh?.geometry.dispose();
+    this._mesh?.material.dispose();
+    this._renderer?.dispose();
+  }
 
-    updateSize() {
-        const rect = this.canvas.getBoundingClientRect();
-        this.renderer.setSize(rect.width, rect.height);
-        this.camera.aspect = rect.width / rect.height;
-        this.camera.updateProjectionMatrix();
-    }
+  translate(delta) {
+    if (!delta || !this._mesh) return;
+    this._position.x = this._clampPos(this._position.x + delta.x * this._cfg.TRANSLATE_SPEED);
+    this._position.y = this._clampPos(this._position.y - delta.y * this._cfg.TRANSLATE_SPEED);
+  }
 
-    animate() {
-        requestAnimationFrame(() => this.animate());
-        
-        if (!this.paused) {
-            // Auto rotation
-            if (this.autoRotate && this.currentObject) {
-                this.rotation.y += 2;
-                if (this.rotation.y >= 360) this.rotation.y -= 360;
-                this.applyTransformations();
-            }
-        }
-        
-        this.renderer.render(this.scene, this.camera);
-    }
+  rotate(angleDelta) {
+    if (typeof angleDelta !== 'number' || !isFinite(angleDelta)) return;
+    this._rotation.y += angleDelta * this._cfg.ROTATE_SPEED;
+    this._rotation.x += angleDelta * this._cfg.ROTATE_SPEED * 0.5;
+  }
 
-    // Gesture control methods
-    translate(dx, dy, dz) {
-        if (this.paused) return;
-        
-        this.position.x += dx * 5;
-        this.position.y -= dy * 5; // Invert Y for natural movement
-        this.position.z += dz * 10;
-        
-        // Clamp positions
-        this.position.x = Math.max(-10, Math.min(10, this.position.x));
-        this.position.y = Math.max(-10, Math.min(10, this.position.y));
-        this.position.z = Math.max(-10, Math.min(10, this.position.z));
-        
-        this.applyTransformations();
-    }
+  zoom(delta) {
+    if (typeof delta !== 'number' || !isFinite(delta)) return;
+    this._scale = Math.max(this._cfg.MIN_SCALE, Math.min(this._cfg.MAX_SCALE, this._scale + delta * this._cfg.ZOOM_SPEED));
+  }
 
-    rotate(dx, dy, dz = 0) {
-        if (this.paused) return;
-        
-        this.rotation.x += dy * 180;
-        this.rotation.y += dx * 180;
-        this.rotation.z += dz * 180;
-        
-        // Keep rotations in 0-360 range
-        this.rotation.x = this.rotation.x % 360;
-        this.rotation.y = this.rotation.y % 360;
-        this.rotation.z = this.rotation.z % 360;
-        
-        this.applyTransformations();
-    }
+  reset() {
+    this._position = { x: 0, y: 0, z: 0 };
+    this._rotation = { x: 0, y: 0, z: 0 };
+    this._scale    = 1.0;
+    this._autoRotate = true;
+  }
 
-    zoom(delta) {
-        if (this.paused) return;
-        
-        this.scale += delta * 2;
-        this.scale = Math.max(0.1, Math.min(5, this.scale));
-        this.applyTransformations();
-    }
+  nextShape() {
+    this._shapeIndex = (this._shapeIndex + 1) % SHAPE_REGISTRY.length;
+    this._spawnMesh();
+  }
 
-    reset() {
-        this.position = { x: 0, y: 0, z: 0 };
-        this.rotation = { x: 0, y: 0, z: 0 };
-        this.scale = 1.0;
-        this.applyTransformations();
+  nextColor() {
+    this._colorIndex = (this._colorIndex + 1) % COLOR_CYCLE.length;
+    if (this._mesh?.material) {
+      this._mesh.material.color.setHex(COLOR_CYCLE[this._colorIndex]);
+      this._mesh.material.emissive.setHex(COLOR_CYCLE[this._colorIndex]);
     }
+  }
 
-    changeObjectType() {
-        const types = ['cube', 'sphere', 'cone', 'torus', 'dodecahedron'];
-        const currentIndex = types.indexOf(this.objectType);
-        this.objectType = types[(currentIndex + 1) % types.length];
-        this.createObject();
-    }
+  setAutoRotate(value) { this._autoRotate = Boolean(value); }
+  get currentShape()   { return SHAPE_REGISTRY[this._shapeIndex].name; }
+  get currentScale()   { return this._scale; }
 
-    changeColor() {
-        this.colorIndex = (this.colorIndex + 1) % this.colors.length;
-        this.objectColor = this.colors[this.colorIndex];
-        
-        if (this.currentObject && this.currentObject.material) {
-            this.currentObject.material.color.setHex(this.objectColor);
-            this.currentObject.material.emissive.setHex(this.objectColor);
-        }
-    }
+  _initRenderer() {
+    this._renderer = new THREE.WebGLRenderer({ canvas: this._canvas, antialias: true, alpha: true });
+    this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this._renderer.setSize(this._canvas.clientWidth, this._canvas.clientHeight);
+    this._renderer.shadowMap.enabled = true;
+  }
 
-    toggleAutoRotate() {
-        this.autoRotate = !this.autoRotate;
-    }
+  _initScene() {
+    this._scene = new THREE.Scene();
+    this._scene.background = new THREE.Color(this._cfg.BG_COLOR);
+    this._scene.fog = new THREE.Fog(this._cfg.BG_COLOR, this._cfg.FOG_NEAR, this._cfg.FOG_FAR);
+  }
 
-    togglePause() {
-        this.paused = !this.paused;
-    }
+  _initCamera() {
+    const aspect = this._canvas.clientWidth / this._canvas.clientHeight;
+    this._camera = new THREE.PerspectiveCamera(this._cfg.FOV, aspect, this._cfg.NEAR, this._cfg.FAR);
+    this._camera.position.z = this._cfg.CAMERA_Z;
+  }
 
-    getState() {
-        return {
-            type: this.objectType,
-            position: { ...this.position },
-            rotation: { ...this.rotation },
-            scale: this.scale,
-            autoRotate: this.autoRotate,
-            paused: this.paused
-        };
+  _initLights() {
+    this._scene.add(new THREE.AmbientLight(0xffffff, this._cfg.AMBIENT_INTENSITY));
+    const dir = new THREE.DirectionalLight(0xffffff, this._cfg.DIRECTIONAL_INTENSITY);
+    dir.position.set(5, 5, 5); dir.castShadow = true;
+    this._scene.add(dir);
+    const pt = new THREE.PointLight(COLOR_PALETTE.CYAN, this._cfg.POINT_INTENSITY, 10);
+    pt.position.set(-3, 3, 3);
+    this._scene.add(pt);
+  }
+
+  _spawnMesh() {
+    if (this._mesh) { this._scene.remove(this._mesh); this._mesh.geometry.dispose(); }
+    const shape    = SHAPE_REGISTRY[this._shapeIndex];
+    const color    = COLOR_CYCLE[this._colorIndex];
+    const geometry = shape.factory();
+    const material = new THREE.MeshStandardMaterial({
+      color, emissive: color,
+      emissiveIntensity: this._cfg.EMISSIVE_INTENSITY,
+      roughness: this._cfg.ROUGHNESS, metalness: this._cfg.METALNESS,
+    });
+    this._mesh = new THREE.Mesh(geometry, material);
+    this._mesh.castShadow = true; this._mesh.receiveShadow = true;
+    this._scene.add(this._mesh);
+  }
+
+  _tick() {
+    if (!this._mesh || !this._renderer) return;
+    if (this._autoRotate) {
+      this._rotation.x += this._cfg.AUTO_ROTATE_X;
+      this._rotation.y += this._cfg.AUTO_ROTATE_Y;
     }
+    this._mesh.position.set(this._position.x, this._position.y, this._position.z);
+    this._mesh.rotation.set(this._rotation.x, this._rotation.y, this._rotation.z);
+    this._mesh.scale.setScalar(this._scale);
+    this._renderer.render(this._scene, this._camera);
+  }
+
+  _initResizeObserver() {
+    const observer = new ResizeObserver(() => this._onResize());
+    observer.observe(this._canvas);
+  }
+
+  _onResize() {
+    if (!this._camera || !this._renderer) return;
+    const w = this._canvas.clientWidth, h = this._canvas.clientHeight;
+    this._camera.aspect = w / h;
+    this._camera.updateProjectionMatrix();
+    this._renderer.setSize(w, h);
+  }
+
+  _clampPos(v) { return Math.max(-this._cfg.POSITION_LIMIT, Math.min(this._cfg.POSITION_LIMIT, v)); }
+
+  _isWebGLSupported() {
+    try {
+      const t = document.createElement('canvas');
+      return !!(t.getContext('webgl') || t.getContext('experimental-webgl'));
+    } catch { return false; }
+  }
 }
