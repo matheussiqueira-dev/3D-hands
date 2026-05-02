@@ -38,12 +38,13 @@ export class HandTracker {
   async start() {
     if (this._running) return;
     try {
-      await this._initMediaPipe();
       await this._startCamera();
+      await this._initMediaPipe();
       this._running = true;
       this._scheduleFrame();
     } catch (err) {
       const error = err instanceof Error ? err : new Error(String(err));
+      this.stop();
       this._emitError(error);
       throw error;
     }
@@ -53,6 +54,7 @@ export class HandTracker {
     this._running = false;
     if (this._rafHandle !== null) { cancelAnimationFrame(this._rafHandle); this._rafHandle = null; }
     if (this._stream)  { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
+    this._video.srcObject = null;
     if (this._hands)   { try { this._hands.close?.(); } catch {} this._hands = null; }
     this._initialized = false;
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
@@ -92,12 +94,19 @@ export class HandTracker {
     try {
       this._stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
-      let error;
-      if (err.name === 'NotAllowedError') error = new Error('Camera access was denied by the user.');
-      else if (err.name === 'NotFoundError') error = new Error('No camera device found.');
-      else error = err instanceof Error ? err : new Error(String(err));
-      throw error;
+      if (err?.name === 'OverconstrainedError' || err?.name === 'ConstraintNotSatisfiedError') {
+        this._stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      } else {
+        let error;
+        if (err.name === 'NotAllowedError') error = new Error('Camera access was denied by the user.');
+        else if (err.name === 'NotFoundError') error = new Error('No camera device found.');
+        else if (err.name === 'NotReadableError') error = new Error('Camera is already in use by another application.');
+        else error = err instanceof Error ? err : new Error(String(err));
+        throw error;
+      }
     }
+    this._video.muted = true;
+    this._video.playsInline = true;
     this._video.srcObject = this._stream;
     await new Promise((resolve, reject) => {
       this._video.onloadedmetadata = () => {
