@@ -452,6 +452,8 @@ p, li, span, button, a {
 }
 
 .footer {
+    display: grid;
+    gap: 8px;
     padding: 22px;
     border: 1px solid rgba(0, 229, 255, 0.16);
     border-radius: 18px;
@@ -471,9 +473,18 @@ p, li, span, button, a {
 
 .footer a {
     display: inline-block;
-    margin-top: 8px;
     text-decoration: none;
     text-shadow: 0 0 10px rgba(0, 229, 255, 0.45);
+}
+
+.footer p strong {
+    color: var(--encom-cyan);
+}
+
+@media (max-width: 640px) {
+    .footer {
+        padding: 18px 16px;
+    }
 }
 
 .footer a:hover {

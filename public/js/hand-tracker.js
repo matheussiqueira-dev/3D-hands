@@ -43,7 +43,9 @@ export class HandTracker {
       this._running = true;
       this._scheduleFrame();
     } catch (err) {
-      this._emitError(err instanceof Error ? err : new Error(String(err)));
+      const error = err instanceof Error ? err : new Error(String(err));
+      this._emitError(error);
+      throw error;
     }
   }
 
@@ -90,9 +92,11 @@ export class HandTracker {
     try {
       this._stream = await navigator.mediaDevices.getUserMedia(constraints);
     } catch (err) {
-      if (err.name === 'NotAllowedError') throw new Error('Camera access was denied by the user.');
-      if (err.name === 'NotFoundError')   throw new Error('No camera device found.');
-      throw err;
+      let error;
+      if (err.name === 'NotAllowedError') error = new Error('Camera access was denied by the user.');
+      else if (err.name === 'NotFoundError') error = new Error('No camera device found.');
+      else error = err instanceof Error ? err : new Error(String(err));
+      throw error;
     }
     this._video.srcObject = this._stream;
     await new Promise((resolve, reject) => {
