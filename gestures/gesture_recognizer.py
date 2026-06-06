@@ -79,8 +79,8 @@ class GestureRecognizer:
     TIP_IDS = [4, 8, 12, 16, 20]
     MID_IDS = [3, 6, 10, 14, 18]
 
-    def __init__(self, config: AppConfig, simple_mode: bool = False) -> None:
-        self.config = config
+    def __init__(self, config: Optional[AppConfig] = None, simple_mode: bool = False) -> None:
+        self.config = config or AppConfig()
         self.simple_mode = simple_mode
         self._last_centroid: Dict[str, Tuple[int, int]] = {}
         self._last_pinch: Dict[str, float] = {}
@@ -370,6 +370,33 @@ class GestureRecognizer:
         tip_y = hand.analysis.points_norm[4][1]
         base_y = hand.analysis.points_norm[2][1]
         return tip_y > base_y + 0.04
+
+    def detect_pinch(self, landmarks) -> bool:
+        points = self._points_from_landmarks(landmarks)
+        if points is None:
+            return False
+        return euclidean_distance(points[4], points[8]) < 0.18
+
+    def count_extended_fingers(self, landmarks) -> int:
+        points = self._points_from_landmarks(landmarks)
+        if points is None:
+            return 0
+
+        bases = [2, 5, 9, 13, 17]
+        return sum(1 for tip, base in zip(self.TIP_IDS, bases) if points[tip][1] < points[base][1] - 0.02)
+
+    def compute_two_hand_scale(self, first_landmarks, second_landmarks) -> float:
+        first = self._points_from_landmarks(first_landmarks)
+        second = self._points_from_landmarks(second_landmarks)
+        if first is None or second is None:
+            return 0.0
+        return float(euclidean_distance(first[0], second[0]) * self.config.two_hand_scale_sensitivity)
+
+    @staticmethod
+    def _points_from_landmarks(landmarks) -> Optional[np.ndarray]:
+        if len(landmarks) < 21:
+            return None
+        return np.array([[lm.x, lm.y, getattr(lm, "z", 0.0)] for lm in landmarks], dtype=np.float32)
 
     @classmethod
     def build_hand_state(cls, analysis: HandAnalysis, handedness: str) -> HandState:

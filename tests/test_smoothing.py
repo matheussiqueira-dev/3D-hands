@@ -22,6 +22,8 @@ class TestExponentialSmoother:
     def test_high_alpha_more_responsive(self):
         fast = ExponentialSmoother(alpha=0.9)
         slow = ExponentialSmoother(alpha=0.1)
+        fast.update(0.0)
+        slow.update(0.0)
         for _ in range(5):
             f = fast.update(100.0)
             s = slow.update(100.0)

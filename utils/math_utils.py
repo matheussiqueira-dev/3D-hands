@@ -39,16 +39,16 @@ def normalize_vector(vec: Sequence[float]) -> np.ndarray:
 def rotation_matrix_x(angle_rad: float) -> np.ndarray:
     c = math.cos(angle_rad)
     s = math.sin(angle_rad)
-    return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=np.float32)
+    return np.array([[1.0, 0.0, 0.0], [0.0, c, -s], [0.0, s, c]], dtype=np.float64)
 
 
 def rotation_matrix_y(angle_rad: float) -> np.ndarray:
     c = math.cos(angle_rad)
     s = math.sin(angle_rad)
-    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]], dtype=np.float32)
+    return np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]], dtype=np.float64)
 
 
 def rotation_matrix_z(angle_rad: float) -> np.ndarray:
     c = math.cos(angle_rad)
     s = math.sin(angle_rad)
-    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=np.float32)
+    return np.array([[c, -s, 0.0], [s, c, 0.0], [0.0, 0.0, 1.0]], dtype=np.float64)

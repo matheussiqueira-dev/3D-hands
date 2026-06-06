@@ -5,8 +5,8 @@ from typing import Deque, Tuple
 
 
 class TemporalSmoother:
-    def __init__(self, window_size: int = 5) -> None:
-        self.window_size = max(1, window_size)
+    def __init__(self, window_size: int = 5, window: int | None = None) -> None:
+        self.window_size = max(1, window if window is not None else window_size)
         self._buffer: Deque[Tuple[str, float]] = deque(maxlen=self.window_size)
 
     def update(self, label: str, confidence: float) -> Tuple[str, float]:
@@ -21,6 +21,15 @@ class TemporalSmoother:
         best_label = max(scores, key=scores.get)
         avg_conf = scores[best_label] / counts[best_label]
         return best_label, float(avg_conf)
+
+    def get_smoothed_label(self) -> str | None:
+        if not self._buffer:
+            return None
+
+        counts: dict[str, int] = {}
+        for item_label, _ in self._buffer:
+            counts[item_label] = counts.get(item_label, 0) + 1
+        return max(counts, key=counts.get)
 
     def reset(self) -> None:
         self._buffer.clear()
