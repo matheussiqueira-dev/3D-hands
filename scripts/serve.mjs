@@ -6,7 +6,13 @@ import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT_DIR = resolve(fileURLToPath(new URL('..', import.meta.url)));
-const vercel = JSON.parse(await readFile(join(ROOT_DIR, 'vercel.json'), 'utf8'));
+let vercel;
+try {
+  vercel = JSON.parse(await readFile(join(ROOT_DIR, 'vercel.json'), 'utf8'));
+} catch (err) {
+  console.error('[serve] cannot load vercel.json:', err.message);
+  process.exit(1);
+}
 const PUBLIC_DIR = resolve(ROOT_DIR, vercel.outputDirectory ?? 'public');
 const PORT = Number(process.env.PORT ?? 3000);
 
