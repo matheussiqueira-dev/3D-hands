@@ -1,9 +1,9 @@
 from pathlib import Path
 
 
-APP_NAME = "Gesture AI System"
-WINDOW_NAME = "Gesture AI - Commercial Prototype"
-WINDOW_NAME_3D = "Gesture AI - 3D Hands"
+APP_NAME = "3D Hands"
+WINDOW_NAME = "3D Hands - Debug"
+WINDOW_NAME_3D = "3D Hands"
 
 DEFAULT_DATASET_PATH = Path("data/dataset.csv")
 DEFAULT_MODEL_PATH = Path("models/saved_models/gesture_model.pkl")

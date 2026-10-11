@@ -1,1 +1,1 @@
-"""Application entry package for Gesture AI system."""
+"""Application entry package for 3D Hands."""
