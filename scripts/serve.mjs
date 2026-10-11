@@ -38,7 +38,13 @@ function headersFor(pathname) {
 }
 
 async function resolveFile(pathname) {
-  const relative = normalize(decodeURIComponent(pathname)).replace(/^([/\\])+/, '');
+  let decoded;
+  try {
+    decoded = decodeURIComponent(pathname);
+  } catch {
+    return null; // malformed %-escape: treat as not found
+  }
+  const relative = normalize(decoded).replace(/^([/\\])+/, '');
   let file = resolve(PUBLIC_DIR, relative);
   if (file !== PUBLIC_DIR && !file.startsWith(PUBLIC_DIR + sep)) return null;
   try {
@@ -59,7 +65,15 @@ createServer(async (req, res) => {
     res.end('Not found');
     return;
   }
-  const body = await readFile(file);
+  let body;
+  try {
+    body = await readFile(file);
+  } catch (err) {
+    console.error(`[serve] cannot read ${file}:`, err.message);
+    res.writeHead(500, { ...headers, 'Content-Type': 'text/plain; charset=utf-8' });
+    res.end('Internal server error');
+    return;
+  }
   res.writeHead(200, { ...headers, 'Content-Type': MIME[extname(file)] ?? 'application/octet-stream' });
   res.end(req.method === 'HEAD' ? undefined : body);
 }).listen(PORT, '127.0.0.1', () => {

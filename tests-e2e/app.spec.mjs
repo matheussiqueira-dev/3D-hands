@@ -55,3 +55,8 @@ test('the shortcuts link opens the keyboard help and the reset button works', as
   await expect(page.locator('#object-scale')).toHaveText('1,0×');
   await expect(page.locator('#announcer')).toHaveText('Objeto redefinido.');
 });
+
+test('the local server answers 404 to a malformed path instead of crashing', async ({ request }) => {
+  expect((await request.get('/%E0%A4%A')).status()).toBe(404);
+  expect((await request.get('/')).status()).toBe(200);
+});
