@@ -32,13 +32,13 @@ export const GESTURE_CONFIG = Object.freeze({
  * `holdMs` is 0 for continuous gestures.
  */
 export const GESTURE_CATALOG = Object.freeze([
-  { id: 'open_palm',     label: 'Mão aberta',        holdMs: 0, action: 'move o objeto na horizontal e na vertical' },
-  { id: 'pinch',         label: 'Pinça',             holdMs: 0, action: 'muda a escala: quase fechada reduz, entreaberta amplia' },
-  { id: 'two_fingers',   label: 'Dois dedos juntos', holdMs: 0, action: 'gira o objeto' },
-  { id: 'fist',          label: 'Punho fechado',     holdMs: GESTURE_CONFIG.FIST_HOLD_MS,         action: 'redefine o objeto' },
-  { id: 'v_sign',        label: 'Sinal de V',        holdMs: GESTURE_CONFIG.V_SIGN_HOLD_MS,       action: 'troca a forma' },
-  { id: 'three_fingers', label: 'Três dedos',        holdMs: GESTURE_CONFIG.THREE_FINGER_HOLD_MS, action: 'troca a cor' },
-  { id: 'dual_hands',    label: 'Duas mãos',         holdMs: 0, action: 'muda a escala ao afastar ou aproximar as mãos' },
+  { id: 'open_palm',     icon: 'move',       label: 'Mão aberta',        holdMs: 0, action: 'move o objeto na horizontal e na vertical' },
+  { id: 'pinch',         icon: 'zoom-in',    label: 'Pinça',             holdMs: 0, action: 'muda a escala: quase fechada reduz, entreaberta amplia' },
+  { id: 'two_fingers',   icon: 'rotate-3d',  label: 'Dois dedos juntos', holdMs: 0, action: 'gira o objeto' },
+  { id: 'fist',          icon: 'rotate-ccw', label: 'Punho fechado',     holdMs: GESTURE_CONFIG.FIST_HOLD_MS,         action: 'redefine o objeto' },
+  { id: 'v_sign',        icon: 'shapes',     label: 'Sinal de V',        holdMs: GESTURE_CONFIG.V_SIGN_HOLD_MS,       action: 'troca a forma' },
+  { id: 'three_fingers', icon: 'palette',    label: 'Três dedos',        holdMs: GESTURE_CONFIG.THREE_FINGER_HOLD_MS, action: 'troca a cor' },
+  { id: 'dual_hands',    icon: 'scaling',    label: 'Duas mãos',         holdMs: 0, action: 'muda a escala ao afastar ou aproximar as mãos' },
 ].map(Object.freeze));
 
 export const SCENE_CONFIG = Object.freeze({
@@ -46,7 +46,7 @@ export const SCENE_CONFIG = Object.freeze({
   TRANSLATE_SPEED: 3.0, ROTATE_SPEED: 2.0, ZOOM_SPEED: 0.05,
   MIN_SCALE: 0.3, MAX_SCALE: 3.0, POSITION_LIMIT: 3.0,
   AUTO_ROTATE_X: 0.003, AUTO_ROTATE_Y: 0.005,
-  FOG_NEAR: 10, FOG_FAR: 50, BG_COLOR: 0x020406,
+  FOG_NEAR: 10, FOG_FAR: 50,
   AMBIENT_INTENSITY: 0.4, DIRECTIONAL_INTENSITY: 0.8, POINT_INTENSITY: 0.5,
   EMISSIVE_INTENSITY: 0.15, ROUGHNESS: 0.3, METALNESS: 0.7,
 });
@@ -61,9 +61,28 @@ export const MEDIAPIPE_HANDS_BASE_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe
 export const TRACKING_CONFIG = Object.freeze({
   MAX_HANDS: 2, MODEL_COMPLEXITY: 1,
   MIN_DETECTION_CONF: 0.7, MIN_TRACKING_CONF: 0.5,
-  LANDMARK_RADIUS: 3, CONNECTION_LINE_WIDTH: 1,
-  LANDMARK_COLOR: '#00FFFF', CONNECTION_COLOR: '#00BFFF',
+  LANDMARK_RADIUS: 3, CONNECTION_LINE_WIDTH: 2, HALO_WIDTH: 2,
 });
+
+/**
+ * Colours are read from ms-tokens.css at runtime (getComputedStyle), never
+ * written as hex here. The object cycles through the data-viz palette.
+ */
+export const COLOR_TOKENS = Object.freeze({
+  SCENE_BG: '--ms-bg',
+  LIGHT: '--ms-text',
+  LANDMARK: '--ms-text',
+  LANDMARK_HALO: '--ms-media-halo',
+});
+
+export const OBJECT_COLORS = Object.freeze([
+  { token: '--ms-chart-1', label: 'Azul' },
+  { token: '--ms-chart-2', label: 'Pêssego' },
+  { token: '--ms-chart-3', label: 'Índigo' },
+  { token: '--ms-chart-4', label: 'Malva' },
+  { token: '--ms-chart-5', label: 'Mostarda' },
+  { token: '--ms-chart-6', label: 'Jade' },
+].map(Object.freeze));
 
 export const UI_CONFIG = Object.freeze({
   FPS_UPDATE_INTERVAL_MS: 500,
@@ -72,12 +91,4 @@ export const UI_CONFIG = Object.freeze({
   TELEMETRY_UPDATE_MS: 100,
   POSE_UPDATE_MS: 500, // pose readout refresh: at most twice per second
   STATUS_FADE_MS: 300,
-});
-
-export const COLOR_PALETTE = Object.freeze({
-  CYAN:   0x00FFFF,
-  ORANGE: 0xFF6B35,
-  GREEN:  0x39FF14,
-  PURPLE: 0xBF00FF,
-  BLUE:   0x0066FF,
 });

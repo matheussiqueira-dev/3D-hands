@@ -1,147 +1,150 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>3D Hands - Controle por Gestos</title>
-    <meta name="description" content="Aplicação de reconhecimento de gestos 3D em tempo real">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link
-        href="https://fonts.googleapis.com/css2?family=Exo+2:wght@400;500;600&family=Orbitron:wght@700;800&family=Rajdhani:wght@500;600;700&display=swap"
-        rel="stylesheet"
-    >
-    <link rel="stylesheet" href="css/style.css">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#0b0d10">
+    <title>3D Hands | Matheus Siqueira</title>
+    <meta name="description" content="Gire, mova e troque a forma de um objeto 3D com gestos da mão pela webcam ou pelo teclado. Three.js e MediaPipe Hands rodando no navegador.">
+    <link rel="preload" href="/fonts/ibm-plex-sans-latin-wght-normal.v5-3-0.woff2" as="font" type="font/woff2" crossorigin>
+    <link rel="stylesheet" href="/ms-tokens.css">
+    <link rel="stylesheet" href="/css/style.css">
 </head>
 <body>
-    <div class="background-grid" aria-hidden="true"></div>
-    <div id="app-container">
-        <header class="header panel">
-            <div class="header-copy">
-                <span class="eyebrow">ENCOM Gesture Interface</span>
-                <h1>3D Hands</h1>
-                <p class="header-description">
-                    Controle um objeto 3D com gestos em tempo real usando visão computacional,
-                    painel holográfico e telemetria visual inspirada em Tron.
-                </p>
-            </div>
-            <div class="status-bar">
-                <span class="status-chip" id="fps-counter">FPS: 0</span>
-                <span class="status-chip" id="gesture-status">Gesto: Nenhum</span>
-                <span class="status-chip status-offline" id="camera-status">Camera: Offline</span>
-            </div>
-        </header>
+    <a class="ms-skip-link" href="#main-content">Pular para o conteúdo</a>
 
-        <main class="main-content">
-            <section class="panel video-panel">
-                <div class="panel-heading">
-                    <div>
-                        <span class="panel-label">Input Feed</span>
-                        <h2>Leitura de Mãos</h2>
-                    </div>
-                    <span class="panel-badge">MediaPipe Live</span>
-                </div>
-                <div class="video-container">
-                    <video id="webcam" autoplay muted playsinline></video>
-                    <canvas id="output-canvas"></canvas>
-                    <div class="controls-overlay">
-                        <button id="start-btn" class="btn btn-primary">Inicializar Câmera</button>
-                        <button id="stop-btn" class="btn btn-danger" disabled>Encerrar</button>
-                    </div>
-                </div>
-                <div id="camera-alert" class="camera-alert" role="alert" hidden>
-                    <p id="camera-alert-message"></p>
-                    <button id="retry-btn" type="button" class="btn btn-primary">Tentar novamente</button>
-                </div>
-            </section>
-
-            <section class="panel scene-panel">
-                <div class="panel-heading">
-                    <div>
-                        <span class="panel-label">3D Output</span>
-                        <h2>Objeto Interativo</h2>
-                    </div>
-                    <span class="panel-badge">Three.js</span>
-                </div>
-                <div class="scene-container">
-                    <canvas id="scene-canvas"></canvas>
-                    <div class="scene-info scan-frame">
-                        <div id="object-info" class="telemetry-grid">
-                            <p><strong>Objeto</strong><span id="object-type">Cubo</span></p>
-                            <p><strong>Posição</strong><span id="object-position">0, 0, 0</span></p>
-                            <p><strong>Rotação</strong><span id="object-rotation">0°, 0°, 0°</span></p>
-                            <p><strong>Escala</strong><span id="object-scale">1.0</span></p>
-                        </div>
-                    </div>
-                </div>
-            </section>
-        <!-- Gesture History Panel -->
-        <section class="panel history-panel" aria-label="Gesture History">
-          <div class="panel-header"><span class="panel-title">GESTURE HISTORY</span></div>
-          <ul id="history-list" class="history-list" aria-live="polite"><li class="history-empty">No gestures recorded yet</li></ul>
-        </section>
-        <!-- Keyboard Shortcuts Legend -->
-        <section class="panel shortcuts-panel" aria-label="Keyboard Shortcuts">
-          <div class="panel-header"><span class="panel-title">KEYBOARD SHORTCUTS</span></div>
-          <ul class="shortcuts-list">
-            <li><kbd>&uarr; &darr; &larr; &rarr;</kbd><span>Move object</span></li>
-            <li><kbd>N</kbd><span>Next shape</span></li>
-            <li><kbd>C</kbd><span>Cycle color</span></li>
-            <li><kbd>R</kbd><span>Reset</span></li>
-            <li><kbd>+ &sol; &minus;</kbd><span>Scale</span></li>
-            <li><kbd>Space</kbd><span>Auto-rotate</span></li>
-            <li><kbd>Esc</kbd><span>Stop tracking</span></li>
-          </ul>
-        </section>
-        </main>
-
-        <section class="lower-grid">
-            <aside class="gesture-guide panel">
-                <div class="panel-heading">
-                    <div>
-                        <span class="panel-label">Command Matrix</span>
-                        <h2>Guia de Gestos</h2>
-                    </div>
-                </div>
-                <ul id="gesture-guide-list"></ul>
-            </aside>
-
-            <section class="system-card panel scan-frame">
-                <div class="panel-heading">
-                    <div>
-                        <span class="panel-label">Runtime Status</span>
-                        <h2>Núcleo de Controle</h2>
-                    </div>
-                </div>
-                <p>
-                    Interface otimizada para desktop, tablet e mobile, com microinterações
-                    em CSS, grid holográfico global e renderização 3D em tempo real.
-                </p>
-                <div class="system-metrics">
-                    <span>Vision Tracking</span>
-                    <span>3D Rendering</span>
-                    <span>Gesture Mapping</span>
-                    <span>Low Latency UI</span>
-                </div>
-            </section>
-        </section>
-
-        <footer class="footer">
-            <p>Desenvolvido por <strong>Matheus Siqueira</strong></p>
-            <a href="https://www.matheussiqueira.dev/" rel="noreferrer" target="_blank">
-                www.matheussiqueira.dev
+    <header class="ms-header">
+        <div class="ms-container ms-header__inner">
+            <a class="ms-brand" href="/">
+                <span class="ms-brand__name">3D Hands</span>
             </a>
-        </footer>
-    </div>
+            <nav class="ms-header__nav" aria-label="Projeto">
+                <a href="https://www.matheussiqueira.dev/pt-BR/projects">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg>
+                    <span class="ms-header__label">Portfólio</span>
+                </a>
+                <a href="https://github.com/matheussiqueira-dev/3D-hands" target="_blank" rel="noopener noreferrer">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m18 16 4-4-4-4"/><path d="m6 8-4 4 4 4"/><path d="m14.5 4-5 16"/></svg>
+                    <span class="ms-header__label">Código</span><span class="ms-sr-only"> (abre em nova aba)</span>
+                </a>
+            </nav>
+        </div>
+    </header>
 
+    <main id="main-content" tabindex="-1" class="ms-container">
+        <section class="intro" aria-labelledby="page-title">
+            <h1 id="page-title">3D Hands</h1>
+            <p class="intro__lead">Gire, mova e troque a forma de um objeto 3D com a mão.</p>
+            <div class="intro__actions">
+                <button id="start-btn" type="button" class="ms-btn ms-btn--primary">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M13.997 4a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 1.759-1.048l.489-.904A2 2 0 0 1 10.004 4z"/><circle cx="12" cy="13" r="3"/></svg>
+                    <span id="start-label">Ativar câmera</span>
+                </button>
+                <button id="stop-btn" type="button" class="ms-btn ms-btn--secondary" hidden>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M14.564 14.558a3 3 0 1 1-4.122-4.121"/><path d="m2 2 20 20"/><path d="M20 20H4a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1.997a2 2 0 0 0 .819-.175"/><path d="M9.695 4.024A2 2 0 0 1 10.004 4h3.993a2 2 0 0 1 1.76 1.05l.486.9A2 2 0 0 0 18.003 7H20a2 2 0 0 1 2 2v7.344"/></svg>
+                    Desligar câmera
+                </button>
+                <a id="keyboard-link" class="intro__keyboard" href="#atalhos">Usar só o teclado</a>
+            </div>
+            <p class="intro__note">O vídeo é processado no seu navegador e não é enviado a nenhum servidor.</p>
+            <div id="camera-alert" class="ms-alert" role="alert" hidden>
+                <svg class="ms-alert__icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="m15 9-6 6"/><path d="M2.586 16.726A2 2 0 0 1 2 15.312V8.688a2 2 0 0 1 .586-1.414l4.688-4.688A2 2 0 0 1 8.688 2h6.624a2 2 0 0 1 1.414.586l4.688 4.688A2 2 0 0 1 22 8.688v6.624a2 2 0 0 1-.586 1.414l-4.688 4.688a2 2 0 0 1-1.414.586H8.688a2 2 0 0 1-1.414-.586z"/><path d="m9 9 6 6"/></svg>
+                <div class="ms-alert__body">
+                    <p class="ms-alert__title">Câmera indisponível</p>
+                    <p id="camera-alert-message" class="ms-alert__text"></p>
+                </div>
+                <button id="retry-btn" type="button" class="ms-btn ms-btn--secondary">Tentar novamente</button>
+            </div>
+        </section>
+
+        <div class="workspace">
+            <section class="stage" aria-label="Objeto 3D">
+                <canvas id="scene-canvas" role="img" aria-label="Objeto 3D. A forma, a cor, a posição, a rotação e a escala atuais estão no painel Pose."></canvas>
+                <p id="scene-error" class="stage__error" hidden>Este navegador não conseguiu iniciar o WebGL, por isso o objeto 3D não aparece. Os controles continuam descritos ao lado.</p>
+            </section>
+
+            <section class="camera" aria-label="Câmera">
+                <video id="webcam" autoplay muted playsinline></video>
+                <canvas id="output-canvas" aria-hidden="true"></canvas>
+                <p id="camera-placeholder" class="camera__placeholder">Câmera desligada</p>
+            </section>
+
+            <div class="side">
+                <ul class="status-row" aria-label="Estado">
+                    <li class="ms-badge" id="camera-status">Câmera: desligada</li>
+                    <li class="ms-badge" id="hands-status">Mãos: 0</li>
+                    <li class="ms-badge" id="fps-counter">FPS: —</li>
+                </ul>
+
+                <section class="ms-card" aria-labelledby="gestures-title">
+                    <h2 id="gestures-title" class="ms-card__title">Gestos</h2>
+                    <p id="hand-hint" class="hint">Os gestos acendem aqui quando a câmera estiver ativa.</p>
+                    <ul id="gesture-panel" class="gesture-panel" tabindex="0" aria-label="Gestos suportados"></ul>
+                </section>
+
+                <section class="ms-card" aria-labelledby="pose-title">
+                    <h2 id="pose-title" class="ms-card__title">Pose</h2>
+                    <dl class="pose">
+                        <div><dt>Forma</dt><dd id="object-type">Cubo</dd></div>
+                        <div><dt>Cor</dt><dd id="object-color">Azul</dd></div>
+                        <div><dt>Posição</dt><dd id="object-position" class="ms-num">x 0,00 · y 0,00</dd></div>
+                        <div><dt>Rotação</dt><dd id="object-rotation" class="ms-num">x 0° · y 0°</dd></div>
+                        <div><dt>Escala</dt><dd id="object-scale" class="ms-num">1,0×</dd></div>
+                    </dl>
+                    <button id="reset-btn" type="button" class="ms-btn ms-btn--secondary">Redefinir objeto</button>
+                </section>
+
+                <details id="atalhos" class="shortcuts">
+                    <summary>Atalhos de teclado</summary>
+                    <ul class="shortcuts__list">
+                        <li><kbd>↑</kbd> <kbd>↓</kbd> <kbd>←</kbd> <kbd>→</kbd><span>move o objeto</span></li>
+                        <li><kbd>N</kbd><span>troca a forma</span></li>
+                        <li><kbd>C</kbd><span>troca a cor</span></li>
+                        <li><kbd>R</kbd><span>redefine o objeto</span></li>
+                        <li><kbd>+</kbd> <kbd>−</kbd><span>muda a escala</span></li>
+                        <li><kbd>Espaço</kbd><span>volta a girar sozinho</span></li>
+                        <li><kbd>Esc</kbd><span>desliga a câmera</span></li>
+                    </ul>
+                </details>
+
+                <section class="ms-card" aria-labelledby="history-title">
+                    <h2 id="history-title" class="ms-card__title">Histórico</h2>
+                    <ol id="history-list" class="history"></ol>
+                </section>
+            </div>
+        </div>
+
+        <section class="limits" aria-labelledby="limits-title">
+            <h2 id="limits-title">Limitações</h2>
+            <ul>
+                <li>Reconhece até duas mãos ao mesmo tempo.</li>
+                <li>Luz forte atrás de você e mãos muito perto da câmera atrapalham o reconhecimento.</li>
+                <li>Gestos com retenção exigem a mão parada durante todo o tempo indicado.</li>
+            </ul>
+        </section>
+    </main>
+
+    <footer class="ms-footer">
+      <div class="ms-container ms-footer__inner">
+        <p class="ms-footer__signature">
+          <a href="https://www.matheussiqueira.dev">Desenvolvido por Matheus Siqueira</a>
+          <span aria-hidden="true">|</span>
+          <a href="https://www.matheussiqueira.dev">www.matheussiqueira.dev</a>
+        </p>
+        <nav class="ms-footer__links" aria-label="Links do autor">
+          <a href="https://www.linkedin.com/in/matheussiqueira-dev" target="_blank" rel="noopener noreferrer">LinkedIn<span class="ms-sr-only"> (abre em nova aba)</span></a>
+          <a href="https://github.com/matheussiqueira-dev" target="_blank" rel="noopener noreferrer">GitHub<span class="ms-sr-only"> (abre em nova aba)</span></a>
+          <a href="https://github.com/matheussiqueira-dev/3D-hands" target="_blank" rel="noopener noreferrer">Código deste projeto<span class="ms-sr-only"> (abre em nova aba)</span></a>
+        </nav>
+        <p class="ms-footer__meta" id="footer-meta">3D Hands · v1.0.0</p>
+      </div>
+    </footer>
+
+    <p id="announcer" class="ms-sr-only" role="status" aria-live="polite"></p>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.min.js" integrity="sha384-qOkzR5Ke/XkQxuGVJ9hpFEpDlcoLtWwVYhnJf06cLIZa2vaIptSqaubivErzmD5O" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/hands.js" integrity="sha384-oHwoZ9HyKv5ark5VOH+XWdbNfmhYtptAOBuV8plz6mAfXvTA6d8fULuYllWouEK2" crossorigin="anonymous"></script>
-
-    <script type="module" src="js/utils.js"></script>
-    <script type="module" src="js/gesture-recognizer.js"></script>
-    <script type="module" src="js/scene-3d.js"></script>
-    <script type="module" src="js/hand-tracker.js"></script>
-    <script type="module" src="js/app.js"></script>
+    <script type="module" src="/js/app.js"></script>
 </body>
 </html>

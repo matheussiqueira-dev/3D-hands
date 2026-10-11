@@ -3,7 +3,7 @@
  * @module format
  */
 
-import { GESTURE_CATALOG } from './config.js';
+import { GESTURE_CATALOG, OBJECT_COLORS } from './config.js';
 
 const seconds = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 
@@ -70,11 +70,12 @@ function toDegrees(rad) {
 
 /**
  * Text version of the scene pose (the canvas's textual alternative).
- * @param {{ shape: string, position: {x:number,y:number}, rotation: {x:number,y:number}, scale: number }} pose
+ * @param {{ shape: string, colorIndex: number, position: {x:number,y:number}, rotation: {x:number,y:number}, scale: number }} pose
  */
 export function formatPose(pose) {
   return {
     shape: SHAPE_LABELS[pose.shape] ?? pose.shape,
+    color: OBJECT_COLORS[pose.colorIndex]?.label ?? '',
     position: `x ${coord.format(pose.position.x)} · y ${coord.format(pose.position.y)}`,
     rotation: `x ${degrees.format(toDegrees(pose.rotation.x))}° · y ${degrees.format(toDegrees(pose.rotation.y))}°`,
     scale: `${factor.format(pose.scale)}×`,

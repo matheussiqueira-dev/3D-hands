@@ -5,7 +5,7 @@
  * @module  hand-tracker
  */
 
-import { CAMERA_CONFIG, MEDIAPIPE_HANDS_BASE_URL, TRACKING_CONFIG } from './config.js';
+import { CAMERA_CONFIG, COLOR_TOKENS, MEDIAPIPE_HANDS_BASE_URL, TRACKING_CONFIG } from './config.js';
 
 /**
  * Error with a stable `code` the UI maps to a user-facing message:
@@ -41,6 +41,7 @@ export class HandTracker {
     this._rafHandle  = null;
     this._running    = false;
     this._initialized = false;
+    this._colors      = { mark: '', halo: '' };
   }
 
   onResults(cb) {
@@ -55,6 +56,11 @@ export class HandTracker {
 
   async start() {
     if (this._running) return;
+    const css = getComputedStyle(document.documentElement);
+    this._colors = {
+      mark: css.getPropertyValue(COLOR_TOKENS.LANDMARK).trim(),
+      halo: css.getPropertyValue(COLOR_TOKENS.LANDMARK_HALO).trim(),
+    };
     try {
       await this._startCamera();
       await this._initMediaPipe();
@@ -168,12 +174,14 @@ export class HandTracker {
     this._resultCbs.forEach(cb => { try { cb(result); } catch {} });
   }
 
+  /** Light marks over a dark halo so the skeleton reads on any camera frame. */
   _drawHandOverlay(landmarks) {
     const W = this._canvas.width, H = this._canvas.height;
-    if (window.HAND_CONNECTIONS) {
-      this._ctx.strokeStyle = this._trackCfg.CONNECTION_COLOR;
-      this._ctx.lineWidth   = this._trackCfg.CONNECTION_LINE_WIDTH;
-      for (const [a, b] of window.HAND_CONNECTIONS) {
+    const { LANDMARK_RADIUS: r, CONNECTION_LINE_WIDTH: line, HALO_WIDTH: halo } = this._trackCfg;
+    const strokeConnections = (color, width) => {
+      this._ctx.strokeStyle = color;
+      this._ctx.lineWidth = width;
+      for (const [a, b] of window.HAND_CONNECTIONS ?? []) {
         const pa = landmarks[a], pb = landmarks[b];
         if (!pa || !pb) continue;
         this._ctx.beginPath();
@@ -181,13 +189,19 @@ export class HandTracker {
         this._ctx.lineTo(pb.x * W, pb.y * H);
         this._ctx.stroke();
       }
-    }
-    this._ctx.fillStyle = this._trackCfg.LANDMARK_COLOR;
-    for (const lm of landmarks) {
-      this._ctx.beginPath();
-      this._ctx.arc(lm.x * W, lm.y * H, this._trackCfg.LANDMARK_RADIUS, 0, Math.PI * 2);
-      this._ctx.fill();
-    }
+    };
+    const fillPoints = (color, radius) => {
+      this._ctx.fillStyle = color;
+      for (const lm of landmarks) {
+        this._ctx.beginPath();
+        this._ctx.arc(lm.x * W, lm.y * H, radius, 0, Math.PI * 2);
+        this._ctx.fill();
+      }
+    };
+    strokeConnections(this._colors.halo, line + halo * 2);
+    fillPoints(this._colors.halo, r + halo);
+    strokeConnections(this._colors.mark, line);
+    fillPoints(this._colors.mark, r);
   }
 
   _emitError(err) {

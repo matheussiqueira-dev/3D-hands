@@ -32,11 +32,26 @@ test('responses carry the security headers from vercel.json', async ({ request }
   expect((await request.get('/rota-inexistente')).status()).toBe(404);
 });
 
-test('the gesture guide matches the recognizer catalog', async ({ page }) => {
+test('the gesture panel lists exactly the recognizer gestures', async ({ page }) => {
   await page.goto('/');
-  const items = page.locator('#gesture-guide-list li');
-  await expect(items).toHaveCount(7);
-  await expect(page.locator('#gesture-guide-list')).toContainText('Punho fechado (segure 2 s)');
-  await expect(page.locator('#gesture-guide-list')).toContainText('Três dedos (segure 0,8 s)');
+  const rows = page.locator('#gesture-panel .gesture-row');
+  await expect(rows).toHaveCount(7);
+  await expect(page.locator('#gesture-panel')).toContainText('Punho fechado');
+  await expect(page.locator('#gesture-panel')).toContainText('segure 2 s · redefine o objeto');
+  await expect(page.locator('#gesture-panel')).toContainText('segure 0,8 s · troca a cor');
   await expect(page.locator('body')).not.toContainText('Polegar');
+  await expect(page.locator('body')).not.toContainText('%');
+});
+
+test('the shortcuts link opens the keyboard help and the reset button works', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__app?._scene);
+  await page.getByRole('link', { name: 'Usar só o teclado' }).click();
+  await expect(page.locator('#atalhos')).toHaveAttribute('open', '');
+  await page.keyboard.press('c');
+  await expect(page.locator('#object-color')).toHaveText('Pêssego');
+  await page.keyboard.press('+');
+  await page.getByRole('button', { name: 'Redefinir objeto' }).click();
+  await expect(page.locator('#object-scale')).toHaveText('1,0×');
+  await expect(page.locator('#announcer')).toHaveText('Objeto redefinido.');
 });

@@ -5,7 +5,12 @@
  * @module  scene-3d
  */
 
-import { SCENE_CONFIG, COLOR_PALETTE } from './config.js';
+import { COLOR_TOKENS, OBJECT_COLORS, SCENE_CONFIG } from './config.js';
+
+/** @param {string} name CSS custom property defined in ms-tokens.css */
+function readToken(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 const SHAPE_REGISTRY = [
   { name: 'cube',         factory: () => new THREE.BoxGeometry(1.5, 1.5, 1.5) },
@@ -13,11 +18,6 @@ const SHAPE_REGISTRY = [
   { name: 'cone',         factory: () => new THREE.ConeGeometry(0.9, 1.8, 32) },
   { name: 'torus',        factory: () => new THREE.TorusGeometry(0.7, 0.3, 16, 100) },
   { name: 'dodecahedron', factory: () => new THREE.DodecahedronGeometry(0.9) },
-];
-
-const COLOR_CYCLE = [
-  COLOR_PALETTE.CYAN, COLOR_PALETTE.ORANGE, COLOR_PALETTE.GREEN,
-  COLOR_PALETTE.PURPLE, COLOR_PALETTE.BLUE,
 ];
 
 export class Scene3D {
@@ -32,10 +32,12 @@ export class Scene3D {
     this._position = { x: 0, y: 0, z: 0 };
     this._rotation = { x: 0, y: 0, z: 0 };
     this._scale    = 1.0;
+    this._colors   = [];
   }
 
   init() {
     if (!this._isWebGLSupported()) throw new Error('WebGL is not supported in this browser or context.');
+    this._colors = OBJECT_COLORS.map(({ token }) => new THREE.Color(readToken(token)));
     this._initRenderer();
     this._initScene();
     this._initCamera();
@@ -86,10 +88,10 @@ export class Scene3D {
   }
 
   nextColor() {
-    this._colorIndex = (this._colorIndex + 1) % COLOR_CYCLE.length;
+    this._colorIndex = (this._colorIndex + 1) % OBJECT_COLORS.length;
     if (this._mesh?.material) {
-      this._mesh.material.color.setHex(COLOR_CYCLE[this._colorIndex]);
-      this._mesh.material.emissive.setHex(COLOR_CYCLE[this._colorIndex]);
+      this._mesh.material.color.copy(this._colors[this._colorIndex]);
+      this._mesh.material.emissive.copy(this._colors[this._colorIndex]);
     }
   }
 
@@ -111,14 +113,16 @@ export class Scene3D {
   _initRenderer() {
     this._renderer = new THREE.WebGLRenderer({ canvas: this._canvas, antialias: true, alpha: true });
     this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this._renderer.setSize(this._canvas.clientWidth, this._canvas.clientHeight);
+    // `false`: CSS owns the canvas box; only the drawing buffer is resized.
+    this._renderer.setSize(this._canvas.clientWidth, this._canvas.clientHeight, false);
     this._renderer.shadowMap.enabled = true;
   }
 
   _initScene() {
     this._scene = new THREE.Scene();
-    this._scene.background = new THREE.Color(this._cfg.BG_COLOR);
-    this._scene.fog = new THREE.Fog(this._cfg.BG_COLOR, this._cfg.FOG_NEAR, this._cfg.FOG_FAR);
+    const bg = new THREE.Color(readToken(COLOR_TOKENS.SCENE_BG));
+    this._scene.background = bg;
+    this._scene.fog = new THREE.Fog(bg, this._cfg.FOG_NEAR, this._cfg.FOG_FAR);
   }
 
   _initCamera() {
@@ -128,11 +132,12 @@ export class Scene3D {
   }
 
   _initLights() {
-    this._scene.add(new THREE.AmbientLight(0xffffff, this._cfg.AMBIENT_INTENSITY));
-    const dir = new THREE.DirectionalLight(0xffffff, this._cfg.DIRECTIONAL_INTENSITY);
+    const light = new THREE.Color(readToken(COLOR_TOKENS.LIGHT));
+    this._scene.add(new THREE.AmbientLight(light, this._cfg.AMBIENT_INTENSITY));
+    const dir = new THREE.DirectionalLight(light, this._cfg.DIRECTIONAL_INTENSITY);
     dir.position.set(5, 5, 5); dir.castShadow = true;
     this._scene.add(dir);
-    const pt = new THREE.PointLight(COLOR_PALETTE.CYAN, this._cfg.POINT_INTENSITY, 10);
+    const pt = new THREE.PointLight(light, this._cfg.POINT_INTENSITY, 10);
     pt.position.set(-3, 3, 3);
     this._scene.add(pt);
   }
@@ -140,7 +145,7 @@ export class Scene3D {
   _spawnMesh() {
     if (this._mesh) { this._scene.remove(this._mesh); this._mesh.geometry.dispose(); }
     const shape    = SHAPE_REGISTRY[this._shapeIndex];
-    const color    = COLOR_CYCLE[this._colorIndex];
+    const color    = this._colors[this._colorIndex];
     const geometry = shape.factory();
     const material = new THREE.MeshStandardMaterial({
       color, emissive: color,
@@ -166,15 +171,16 @@ export class Scene3D {
 
   _initResizeObserver() {
     const observer = new ResizeObserver(() => this._onResize());
-    observer.observe(this._canvas);
+    observer.observe(this._canvas.parentElement ?? this._canvas);
   }
 
   _onResize() {
     if (!this._camera || !this._renderer) return;
     const w = this._canvas.clientWidth, h = this._canvas.clientHeight;
+    if (!w || !h) return;
     this._camera.aspect = w / h;
     this._camera.updateProjectionMatrix();
-    this._renderer.setSize(w, h);
+    this._renderer.setSize(w, h, false);
   }
 
   _clampPos(v) { return Math.max(-this._cfg.POSITION_LIMIT, Math.min(this._cfg.POSITION_LIMIT, v)); }
