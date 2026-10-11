@@ -24,7 +24,8 @@
     "check": "node scripts/check-syntax.mjs",
     "test": "node --test \"tests-web/**/*.test.mjs\"",
     "test:e2e": "playwright test",
-    "deploy": "npx --yes vercel@54.9.1 --prod"
+    "deploy": "npx --yes vercel@54.9.1 --prod",
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-include=public/js/gesture-recognizer.js --test-coverage-include=public/js/format.js --test-coverage-include=public/js/config.js \"tests-web/**/*.test.mjs\""
   },
   "keywords": [
     "hand-tracking",
