@@ -30,14 +30,6 @@ export function mapRange(value, inMin, inMax, outMin, outMax) {
   return outMin + ((value - inMin) / (inMax - inMin)) * (outMax - outMin);
 }
 
-/** Generates a cryptographically-random alphanumeric ID. @param {number} [length=16] @returns {string} */
-export function generateSessionId(length = 16) {
-  const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
-  const buf = new Uint8Array(length);
-  crypto.getRandomValues(buf);
-  return Array.from(buf, b => chars[b % chars.length]).join('');
-}
-
 /**
  * Rolling-window FPS counter.
  * @example const fps = new FPSCounter(); fps.tick(); console.log(fps.value);

@@ -44,13 +44,6 @@ export const TRACKING_CONFIG = Object.freeze({
   LANDMARK_COLOR: '#00FFFF', CONNECTION_COLOR: '#00BFFF',
 });
 
-export const API_CONFIG = Object.freeze({
-  GESTURE_ENDPOINT: '/api/gesture',
-  LOG_INTERVAL_MS: 1000,
-  SESSION_ID_LENGTH: 16,
-  SESSION_ID_ALPHABET: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789',
-});
-
 export const UI_CONFIG = Object.freeze({
   FPS_UPDATE_INTERVAL_MS: 500,
   GESTURE_DISPLAY_DURATION_MS: 1500,

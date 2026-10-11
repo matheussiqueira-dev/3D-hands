@@ -6,12 +6,11 @@
 import { HandTracker } from "./hand-tracker.js";
 import { GestureRecognizer } from "./gesture-recognizer.js";
 import { Scene3D } from "./scene-3d.js";
-import { FPSCounter, generateSessionId, throttle } from "./utils.js";
-import { API_CONFIG, UI_CONFIG } from "./config.js";
+import { FPSCounter } from "./utils.js";
+import { UI_CONFIG } from "./config.js";
 
 export class App {
   constructor() {
-    this._sessionId = generateSessionId(API_CONFIG.SESSION_ID_LENGTH);
     this._fps = new FPSCounter(60);
     this._recognizer = new GestureRecognizer();
     this._history = [];
@@ -20,7 +19,6 @@ export class App {
     this._dom = {};
     this._scene = null;
     this._tracker = null;
-    this._logGesture = throttle((gesture, confidence) => this._postGestureEvent(gesture, confidence), API_CONFIG.LOG_INTERVAL_MS);
   }
 
   async init() {
@@ -102,7 +100,6 @@ export class App {
       this._applyToScene(primary);
       this._updateGestureDisplay(primary.name, primary.confidence);
       this._recordHistory(primary.name, primary.confidence);
-      this._logGesture(primary.name, primary.confidence);
       return;
     }
 
@@ -247,26 +244,6 @@ export class App {
           `<li class="history-entry"><span class="history-gesture">${entry.gesture.replace(/_/g, " ")}</span><span class="history-meta">${entry.confidence}% &middot; ${entry.timestamp}</span></li>`
       )
       .join("");
-  }
-
-  async _postGestureEvent(gesture, confidence) {
-    try {
-      const response = await fetch(API_CONFIG.GESTURE_ENDPOINT, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          gesture,
-          sessionId: this._sessionId,
-          metadata: { confidence: Math.round(confidence * 100) },
-        }),
-      });
-
-      if (!response.ok) {
-        console.warn("[App] API failed:", response.status);
-      }
-    } catch (error) {
-      console.debug("[App] API unreachable:", error?.message);
-    }
   }
 
   _updateGestureDisplay(gesture, confidence) {
