@@ -24,3 +24,12 @@ test('guide lines are formatted in PT-BR', () => {
   const palm = GESTURE_CATALOG.find((g) => g.id === 'open_palm');
   assert.equal(formatGestureLine(palm), 'Mão aberta · move o objeto na horizontal e na vertical');
 });
+
+test('camera errors map to PT-BR messages with a fallback', async () => {
+  const { cameraErrorMessage } = await import('../public/js/format.js');
+  assert.match(cameraErrorMessage('denied'), /^A câmera foi bloqueada/);
+  assert.match(cameraErrorMessage('not-found'), /Nenhuma câmera encontrada/);
+  assert.match(cameraErrorMessage('in-use'), /outro aplicativo/);
+  assert.equal(cameraErrorMessage('???'), cameraErrorMessage('unknown'));
+  assert.equal(cameraErrorMessage(undefined), cameraErrorMessage('unknown'));
+});

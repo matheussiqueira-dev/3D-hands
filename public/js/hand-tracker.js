@@ -7,6 +7,24 @@
 
 import { CAMERA_CONFIG, MEDIAPIPE_HANDS_BASE_URL, TRACKING_CONFIG } from './config.js';
 
+/**
+ * Error with a stable `code` the UI maps to a user-facing message:
+ * 'denied' | 'not-found' | 'in-use' | 'unsupported' | 'model' | 'unknown'.
+ */
+export class CameraError extends Error {
+  constructor(code, message, options) {
+    super(message, options);
+    this.name = 'CameraError';
+    this.code = code;
+  }
+}
+
+const GET_USER_MEDIA_CODES = Object.freeze({
+  NotAllowedError: 'denied', SecurityError: 'denied',
+  NotFoundError: 'not-found', DevicesNotFoundError: 'not-found',
+  NotReadableError: 'in-use', TrackStartError: 'in-use',
+});
+
 export class HandTracker {
   constructor(videoEl, overlayEl, camCfg = {}, trackCfg = {}) {
     if (!(videoEl instanceof HTMLVideoElement))    throw new TypeError('videoEl must be an HTMLVideoElement');
@@ -43,7 +61,9 @@ export class HandTracker {
       this._running = true;
       this._scheduleFrame();
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
+      const error = err instanceof CameraError
+        ? err
+        : new CameraError('unknown', err instanceof Error ? err.message : String(err), { cause: err });
       this.stop();
       this._emitError(error);
       throw error;
@@ -65,7 +85,7 @@ export class HandTracker {
   async _initMediaPipe() {
     if (this._initialized) return;
     if (typeof window.Hands === 'undefined')
-      throw new Error('MediaPipe Hands is not loaded. Ensure the CDN script is included.');
+      throw new CameraError('model', 'MediaPipe Hands is not loaded. Ensure the CDN script is included.');
     this._hands = new window.Hands({
       locateFile: file => MEDIAPIPE_HANDS_BASE_URL + file,
     });
@@ -76,13 +96,17 @@ export class HandTracker {
       minTrackingConfidence:  this._trackCfg.MIN_TRACKING_CONF,
     });
     this._hands.onResults(raw => this._handleRawResults(raw));
-    await this._hands.initialize();
+    try {
+      await this._hands.initialize();
+    } catch (err) {
+      throw new CameraError('model', 'MediaPipe Hands failed to initialize', { cause: err });
+    }
     this._initialized = true;
   }
 
   async _startCamera() {
     if (!navigator.mediaDevices?.getUserMedia)
-      throw new Error('Camera API (getUserMedia) is not available in this browser or context.');
+      throw new CameraError('unsupported', 'Camera API (getUserMedia) is not available in this browser or context.');
     const constraints = {
       video: {
         facingMode: this._camCfg.FACING_MODE,
@@ -97,12 +121,7 @@ export class HandTracker {
       if (err?.name === 'OverconstrainedError' || err?.name === 'ConstraintNotSatisfiedError') {
         this._stream = await navigator.mediaDevices.getUserMedia({ video: true });
       } else {
-        let error;
-        if (err.name === 'NotAllowedError') error = new Error('Camera access was denied by the user.');
-        else if (err.name === 'NotFoundError') error = new Error('No camera device found.');
-        else if (err.name === 'NotReadableError') error = new Error('Camera is already in use by another application.');
-        else error = err instanceof Error ? err : new Error(String(err));
-        throw error;
+        throw new CameraError(GET_USER_MEDIA_CODES[err?.name] ?? 'unknown', `getUserMedia failed: ${err?.name ?? err}`, { cause: err });
       }
     }
     this._video.muted = true;

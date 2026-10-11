@@ -658,3 +658,15 @@ kbd {
     color: var(--primary-color, #00ffff);
     white-space: nowrap;
 }
+
+.camera-alert {
+    margin-top: 12px;
+    padding: 12px 16px;
+    border: 1px solid #ff8f70;
+    border-radius: 10px;
+    color: #e4e7ec;
+}
+
+.camera-alert[hidden] {
+    display: none;
+}

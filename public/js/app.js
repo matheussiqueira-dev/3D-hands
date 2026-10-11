@@ -8,7 +8,7 @@ import { GestureRecognizer } from "./gesture-recognizer.js";
 import { Scene3D } from "./scene-3d.js";
 import { FPSCounter } from "./utils.js";
 import { GESTURE_CATALOG, UI_CONFIG } from "./config.js";
-import { formatHold } from "./format.js";
+import { cameraErrorMessage, formatHold } from "./format.js";
 
 export class App {
   constructor() {
@@ -46,6 +46,9 @@ export class App {
       stop: ["stop-btn"],
       history: ["history-list"],
       guide: ["gesture-guide-list"],
+      alert: ["camera-alert"],
+      alertMessage: ["camera-alert-message"],
+      retry: ["retry-btn"],
     };
 
     for (const key of Object.keys(aliases)) {
@@ -81,7 +84,12 @@ export class App {
 
     this._tracker = new HandTracker(video, overlay);
     this._tracker.onResults((result) => this._handleResult(result));
-    this._tracker.onError((error) => this._setStatus("error", error.message));
+    // Start failures are surfaced by start(); this covers errors while running.
+    this._tracker.onError((error) => {
+      if (!this._running) return;
+      this._setStatus("error", error.message);
+      this._showCameraError(error);
+    });
   }
 
   _handleResult(result) {
@@ -180,6 +188,7 @@ export class App {
   _bindButtons() {
     this._dom.start?.addEventListener("click", () => this.start());
     this._dom.stop?.addEventListener("click", () => this.stop());
+    this._dom.retry?.addEventListener("click", () => this.start());
   }
 
   async start() {
@@ -190,6 +199,7 @@ export class App {
     }
 
     this._running = true;
+    this._hideCameraError();
     this._setStatus("loading", "Initializing camera and hand tracking model...");
 
     try {
@@ -203,6 +213,7 @@ export class App {
     } catch (error) {
       this._running = false;
       this._setStatus("error", error?.message ?? "Failed to start tracking");
+      this._showCameraError(error);
       if (this._dom.start) this._dom.start.disabled = false;
       if (this._dom.stop) this._dom.stop.disabled = true;
     }
@@ -217,6 +228,19 @@ export class App {
     this._setStatus("ready", "Tracking stopped");
     if (this._dom.start) this._dom.start.disabled = false;
     if (this._dom.stop) this._dom.stop.disabled = true;
+  }
+
+  /** @param {{ code?: string } | undefined} error */
+  _showCameraError(error) {
+    if (!this._dom.alert || !this._dom.alertMessage) return;
+    this._dom.alertMessage.textContent = cameraErrorMessage(error?.code);
+    // Retrying cannot help when there is no camera or no camera API.
+    if (this._dom.retry) this._dom.retry.hidden = error?.code === "not-found" || error?.code === "unsupported";
+    this._dom.alert.hidden = false;
+  }
+
+  _hideCameraError() {
+    if (this._dom.alert) this._dom.alert.hidden = true;
   }
 
   _recordHistory(gesture) {
