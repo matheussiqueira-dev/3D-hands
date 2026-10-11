@@ -1,53 +1,38 @@
-# Contributing to 3D Hands
+# Como contribuir com o 3D Hands
 
-## Commit Convention
+## Commits
 
-All commits follow [Conventional Commits](https://www.conventionalcommits.org/):
+[Conventional Commits](https://www.conventionalcommits.org/) em inglês, uma linha, sem corpo nem rodapé:
 
 ```
-<type>(<scope>): <short description>
-
-[optional body]
-
-Author: Matheus Siqueira <https://www.matheussiqueira.dev/>
+fix: align gesture guide with recognizer
 ```
 
-**Types**: `feat`, `fix`, `refactor`, `test`, `docs`, `chore`, `perf`
+Tipos usados: `feat`, `fix`, `refactor`, `test`, `docs`, `style`, `build`, `ci`, `chore`.
 
----
+## Branches
 
-## Branch Strategy
+| Branch | Uso |
+|---|---|
+| `main` | produção (cada merge publica na Vercel) |
+| `feat/*`, `fix/*`, `update/*` | trabalho em andamento, com PR para `main` |
 
-| Branch | Purpose |
-|--------|---------|
-| `main` | Production-ready |
-| `feat/*` | New features |
-| `fix/*` | Bug fixes |
-| `refactor/*` | Code quality |
+## Antes do PR
 
----
+```bash
+npm test && npm run check && npm run test:e2e
+pytest
+```
 
-## Code Standards
+## Adicionar um gesto na versão web
 
-- **Python**: PEP 8, type hints on all public functions, docstrings on all classes
-- **JavaScript**: JSDoc on all exports, no `var`, no `console.log` in production paths
-- **Tests**: every new Python module must have a `tests/test_<module>.py` counterpart
+1. Crie o método `_detect<Nome>()` em `public/js/gesture-recognizer.js`, chame-o em `recognize()` e inclua o nome em `GESTURE_NAMES`.
+2. Acrescente a entrada em `GESTURE_CATALOG` (`public/js/config.js`), com rótulo, ícone, tempo de retenção e ação em PT-BR. O painel na tela é montado a partir dessa lista.
+3. Aplique a ação em `_applyToScene()` (`public/js/app.js`).
+4. Escreva o teste com landmarks sintéticos em `tests-web/` (veja `hand-fixtures.mjs`) e atualize a tabela de gestos do README; `tests-web/readme.test.mjs` confere as duas listas.
 
----
+## Adicionar um gesto no app desktop
 
-## Adding a New Gesture (Python)
-
-1. Add a private `_detect_<name>` method in `gestures/gesture_recognizer.py`
-2. Call it from `recognize()` and add the name to the state map in `core/constants.py`
-3. Add at least one test in `tests/test_gesture_recognizer.py`
-
-## Adding a New Gesture (Web)
-
-1. Add a `_detect<Name>()` method in `public/js/gesture-recognizer.js`
-2. Call it from `recognize()` and add the name to `VALID_GESTURES` in `api/gesture.js`
-3. Map the gesture to a scene action in `_applyToScene()` in `public/js/app.js`
-4. Add the gesture to the guide table in `public/index.html`
-
----
-
-<p align="center"><a href="https://www.matheussiqueira.dev/">Matheus Siqueira</a></p>
+1. Crie o método `_detect_<nome>` em `gestures/gesture_recognizer.py` e chame-o em `recognize()`.
+2. Registre o nome em `core/constants.py`, se o estado for exibido.
+3. Acrescente ao menos um teste em `tests/test_gesture_recognizer.py`.
