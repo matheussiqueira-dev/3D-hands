@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatPose } from '../public/js/format.js';
+import { formatHistoryEntry, formatPose, gestureLabel } from '../public/js/format.js';
 
 test('the pose readout uses PT-BR numbers, degrees and shape names', () => {
   const text = formatPose({
@@ -22,4 +22,10 @@ test('rotation wraps past a full turn and scale keeps one decimal', () => {
   assert.equal(text.rotation, 'x 1° · y 0°');
   assert.equal(text.scale, '1,0×');
   assert.equal(text.shape, 'Cubo');
+});
+
+test('history entries read as PT-BR sentences', () => {
+  assert.equal(formatHistoryEntry({ gesture: 'v_sign', detail: 'forma: Esfera', time: '14:03:12' }), 'Sinal de V · forma: Esfera · 14:03:12');
+  assert.equal(formatHistoryEntry({ gesture: 'open_palm', time: '14:03:13' }), 'Mão aberta · 14:03:13');
+  assert.equal(gestureLabel('unknown_gesture'), 'unknown_gesture');
 });

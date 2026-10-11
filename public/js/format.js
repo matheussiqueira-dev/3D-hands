@@ -3,6 +3,8 @@
  * @module format
  */
 
+import { GESTURE_CATALOG } from './config.js';
+
 const seconds = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 1 });
 
 /** @param {number} ms @returns {string} e.g. "segure 0,8 s" */
@@ -35,6 +37,21 @@ export const CAMERA_ERROR_MESSAGES = Object.freeze({
 /** @param {string | undefined} code */
 export function cameraErrorMessage(code) {
   return CAMERA_ERROR_MESSAGES[code] ?? CAMERA_ERROR_MESSAGES.unknown;
+}
+
+const GESTURE_LABELS = Object.freeze(Object.fromEntries(GESTURE_CATALOG.map((g) => [g.id, g.label])));
+
+/** @param {string} id @returns {string} PT-BR gesture name */
+export function gestureLabel(id) {
+  return GESTURE_LABELS[id] ?? id;
+}
+
+/**
+ * One history line: "Sinal de V · forma: Esfera · 14:03:12".
+ * @param {{ gesture: string, detail?: string, time: string }} entry
+ */
+export function formatHistoryEntry(entry) {
+  return [gestureLabel(entry.gesture), entry.detail, entry.time].filter(Boolean).join(' · ');
 }
 
 export const SHAPE_LABELS = Object.freeze({

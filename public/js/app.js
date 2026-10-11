@@ -8,7 +8,7 @@ import { GestureRecognizer } from "./gesture-recognizer.js";
 import { Scene3D } from "./scene-3d.js";
 import { FPSCounter } from "./utils.js";
 import { GESTURE_CATALOG, UI_CONFIG } from "./config.js";
-import { cameraErrorMessage, formatHold, formatPose } from "./format.js";
+import { SHAPE_LABELS, cameraErrorMessage, formatHistoryEntry, formatHold, formatPose } from "./format.js";
 
 export class App {
   constructor() {
@@ -112,9 +112,9 @@ export class App {
     const primary = this._recognizer.getPrimaryGesture(gestures);
 
     if (primary?.active) {
-      this._applyToScene(primary);
+      const detail = this._applyToScene(primary);
       this._updateGestureDisplay(primary.name);
-      this._recordHistory(primary.name);
+      this._recordHistory(primary.name, detail);
       return;
     }
 
@@ -127,8 +127,9 @@ export class App {
     this._updateGestureDisplay("tracking...");
   }
 
+  /** Applies a gesture and returns a short PT-BR detail for the history, if any. */
   _applyToScene(gesture) {
-    if (!this._scene) return;
+    if (!this._scene) return undefined;
 
     switch (gesture.name) {
       case "open_palm":
@@ -144,20 +145,21 @@ export class App {
       case "fist":
         this._scene.reset();
         this._setStatus("info", "Reset via fist");
-        break;
+        return "objeto redefinido";
       case "v_sign":
         this._scene.nextShape();
         this._setStatus("info", `Shape: ${this._scene.currentShape}`);
-        break;
+        return `forma: ${SHAPE_LABELS[this._scene.currentShape]}`;
       case "three_fingers":
         this._scene.nextColor();
-        break;
+        return "cor alterada";
       case "dual_hands":
         if (gesture.data?.scaleDelta) {
           this._scene.zoom(gesture.data.scaleDelta * 10);
         }
         break;
     }
+    return undefined;
   }
 
   _bindKeyboard() {
@@ -247,13 +249,15 @@ export class App {
     if (this._dom.alert) this._dom.alert.hidden = true;
   }
 
-  _recordHistory(gesture) {
-    if (gesture === this._lastGesture) return;
+  /** @param {string} gesture @param {string} [detail] */
+  _recordHistory(gesture, detail) {
+    if (gesture === this._lastGesture && !detail) return;
 
     this._lastGesture = gesture;
     this._history.unshift({
       gesture,
-      timestamp: new Date().toLocaleTimeString(),
+      detail,
+      time: new Date().toLocaleTimeString("pt-BR"),
     });
 
     if (this._history.length > UI_CONFIG.HISTORY_MAX_ENTRIES) {
@@ -282,16 +286,19 @@ export class App {
     if (!list) return;
 
     if (!this._history.length) {
-      list.innerHTML = '<li class="history-empty">No gestures recorded yet</li>';
+      const empty = document.createElement("li");
+      empty.className = "history-empty";
+      empty.textContent = "Nenhum gesto reconhecido ainda.";
+      list.replaceChildren(empty);
       return;
     }
 
-    list.innerHTML = this._history
-      .map(
-        (entry) =>
-          `<li class="history-entry"><span class="history-gesture">${entry.gesture.replace(/_/g, " ")}</span><span class="history-meta">${entry.timestamp}</span></li>`
-      )
-      .join("");
+    list.replaceChildren(...this._history.map((entry) => {
+      const item = document.createElement("li");
+      item.className = "history-entry";
+      item.textContent = formatHistoryEntry(entry);
+      return item;
+    }));
   }
 
   /** @param {string} gesture @param {number} [holdProgress] measured hold fraction, 0 to 1 */
