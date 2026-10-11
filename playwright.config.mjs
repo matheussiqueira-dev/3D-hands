@@ -19,6 +19,12 @@ export default defineConfig({
       args: ['--enable-unsafe-swiftshader', '--use-angle=swiftshader'],
     },
   },
+  // Loading the MediaPipe model on software WebGL is CPU-heavy: running it in
+  // parallel with other tests left it stuck in "iniciando". It runs alone, last.
+  projects: [
+    { name: 'ui', testIgnore: /camera\.spec\.mjs$/ },
+    { name: 'camera', testMatch: /camera\.spec\.mjs$/, dependencies: ['ui'] },
+  ],
   webServer: {
     command: 'node scripts/write-version.mjs && node scripts/serve.mjs',
     env: { PORT: String(PORT) },

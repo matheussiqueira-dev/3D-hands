@@ -17,7 +17,9 @@ test('hand tracking starts with a fake camera under the CSP', async ({ page }) =
   await page.goto('/');
   await page.waitForFunction(() => window.__app);
   await page.locator('#start-btn').click();
-  await expect.poll(() => page.evaluate(() => window.__app?._tracker?.isRunning), { timeout: 45_000 }).toBe(true);
+  // Asserting on the visible chip reports the actual state (iniciando / erro) on failure.
+  await expect(page.locator('#camera-status')).toHaveText('Câmera: ativa', { timeout: 45_000 });
+  await expect(page.getByRole('alert')).toBeHidden();
   // The model is processing frames: results arrive even without a hand in view.
   await expect.poll(() => page.evaluate(() => window.__app._fps.value), { timeout: 30_000 }).toBeGreaterThan(0);
   expect(await page.evaluate(() => Array.isArray(window.HAND_CONNECTIONS))).toBe(true);
