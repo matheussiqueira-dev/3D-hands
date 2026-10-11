@@ -19,6 +19,9 @@ const WRIST = 0;
 /** Gesture names this recognizer can emit, highest priority first. */
 export const GESTURE_NAMES = Object.freeze(['dual_hands', 'fist', 'v_sign', 'three_fingers', 'pinch', 'two_fingers', 'open_palm']);
 
+/** Single-hand gestures that act on every frame (no hold time). */
+const CONTINUOUS = new Set(['open_palm', 'pinch', 'two_fingers']);
+
 /**
  * Real-time gesture recognizer with temporal debouncing.
  * Each gesture has its own private _detect*() method (Single Responsibility).
@@ -73,6 +76,11 @@ export class GestureRecognizer {
 
     const three = this._detectThreeFingers(fingers, extCount);
     if (three) results.push(three);
+
+    // A pose being held for a timed command must not also move the object.
+    if (fist || vSign || three) {
+      for (const r of results) if (CONTINUOUS.has(r.name)) r.active = false;
+    }
 
     if (hand2 && this._isValidHand(hand2)) {
       const dual = this._detectDualHandScale(hand1, hand2);

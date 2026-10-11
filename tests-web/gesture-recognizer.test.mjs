@@ -124,3 +124,13 @@ test('a hold gesture fires once per hold, not on every frame', () => {
   clock.advance(2000);
   assert.equal(fist().active, true);
 });
+
+test('continuous gestures stay inactive while a hold gesture is in progress', () => {
+  const r = new GestureRecognizer();
+  // A fist whose thumb tip rests on the folded index tip also looks like a pinch.
+  const fistTouching = makeHand({}, { tips: { thumb: { x: 0.45, y: 0.72 } } });
+  const results = r.recognize(fistTouching);
+  assert.ok(results.some((g) => g.name === 'fist'));
+  assert.equal(results.find((g) => g.name === 'pinch').active, false);
+  assert.equal(r.getPrimaryGesture(results), null);
+});

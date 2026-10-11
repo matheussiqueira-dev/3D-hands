@@ -133,7 +133,8 @@ export class App {
 
     const gestures = this._recognizer.recognize(hand1, hand2);
     const primary = this._recognizer.getPrimaryGesture(gestures);
-    const holding = gestures.find((g) => typeof g.progress === "number" && g.progress < 1);
+    // A held pose stays lit (with a full bar) after it fires, until released.
+    const holding = gestures.find((g) => typeof g.progress === "number");
 
     for (const g of gestures) {
       if (typeof g.progress === "number") this._setHoldProgress(g.name, g.progress);
