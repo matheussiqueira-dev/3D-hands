@@ -25,3 +25,12 @@ test('responses carry the security headers from vercel.json', async ({ request }
   expect(h['cross-origin-embedder-policy']).toBeUndefined();
   expect((await request.get('/rota-inexistente')).status()).toBe(404);
 });
+
+test('the gesture guide matches the recognizer catalog', async ({ page }) => {
+  await page.goto('/');
+  const items = page.locator('#gesture-guide-list li');
+  await expect(items).toHaveCount(7);
+  await expect(page.locator('#gesture-guide-list')).toContainText('Punho fechado (segure 2 s)');
+  await expect(page.locator('#gesture-guide-list')).toContainText('Três dedos (segure 0,8 s)');
+  await expect(page.locator('body')).not.toContainText('Polegar');
+});

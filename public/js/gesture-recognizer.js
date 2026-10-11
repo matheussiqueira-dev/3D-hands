@@ -16,6 +16,9 @@ const MCPS = Object.freeze({ thumb: 2, index: 5, middle: 9,  ring: 13, pinky: 17
 const PALM_INDICES = Object.freeze([0, 1, 5, 9, 13, 17]);
 const WRIST = 0;
 
+/** Gesture names this recognizer can emit, highest priority first. */
+export const GESTURE_NAMES = Object.freeze(['dual_hands', 'fist', 'v_sign', 'three_fingers', 'pinch', 'two_fingers', 'open_palm']);
+
 /**
  * Real-time gesture recognizer with temporal debouncing.
  * Each gesture has its own private _detect*() method (Single Responsibility).
@@ -82,8 +85,7 @@ export class GestureRecognizer {
   }
 
   getPrimaryGesture(results) {
-    const PRIORITY = ['dual_hands','fist','v_sign','three_fingers','pinch','two_fingers','open_palm'];
-    for (const name of PRIORITY) {
+    for (const name of GESTURE_NAMES) {
       const found = results.find(r => r.name === name && r.active);
       if (found) return found;
     }

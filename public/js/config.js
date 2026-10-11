@@ -26,6 +26,21 @@ export const GESTURE_CONFIG = Object.freeze({
   SCALE_DEADZONE:       0.008,
 });
 
+/**
+ * Every gesture the browser recognizer emits, in display order. The on-screen
+ * guide and the README table are checked against this list by the tests.
+ * `holdMs` is 0 for continuous gestures.
+ */
+export const GESTURE_CATALOG = Object.freeze([
+  { id: 'open_palm',     label: 'Mão aberta',        holdMs: 0, action: 'move o objeto na horizontal e na vertical' },
+  { id: 'pinch',         label: 'Pinça',             holdMs: 0, action: 'muda a escala: quase fechada reduz, entreaberta amplia' },
+  { id: 'two_fingers',   label: 'Dois dedos juntos', holdMs: 0, action: 'gira o objeto' },
+  { id: 'fist',          label: 'Punho fechado',     holdMs: GESTURE_CONFIG.FIST_HOLD_MS,         action: 'redefine o objeto' },
+  { id: 'v_sign',        label: 'Sinal de V',        holdMs: GESTURE_CONFIG.V_SIGN_HOLD_MS,       action: 'troca a forma' },
+  { id: 'three_fingers', label: 'Três dedos',        holdMs: GESTURE_CONFIG.THREE_FINGER_HOLD_MS, action: 'troca a cor' },
+  { id: 'dual_hands',    label: 'Duas mãos',         holdMs: 0, action: 'muda a escala ao afastar ou aproximar as mãos' },
+].map(Object.freeze));
+
 export const SCENE_CONFIG = Object.freeze({
   FOV: 75, NEAR: 0.1, FAR: 1000, CAMERA_Z: 5,
   TRANSLATE_SPEED: 3.0, ROTATE_SPEED: 2.0, ZOOM_SPEED: 0.05,

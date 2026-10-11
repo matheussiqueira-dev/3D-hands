@@ -7,7 +7,8 @@ import { HandTracker } from "./hand-tracker.js";
 import { GestureRecognizer } from "./gesture-recognizer.js";
 import { Scene3D } from "./scene-3d.js";
 import { FPSCounter } from "./utils.js";
-import { UI_CONFIG } from "./config.js";
+import { GESTURE_CATALOG, UI_CONFIG } from "./config.js";
+import { formatHold } from "./format.js";
 
 export class App {
   constructor() {
@@ -28,6 +29,7 @@ export class App {
     this._bindKeyboard();
     this._bindButtons();
     this._startTelemetry();
+    this._renderGuide();
     this._renderHistory();
     this._setStatus("ready", "System ready");
   }
@@ -43,6 +45,7 @@ export class App {
       start: ["start-btn"],
       stop: ["stop-btn"],
       history: ["history-list"],
+      guide: ["gesture-guide-list"],
     };
 
     for (const key of Object.keys(aliases)) {
@@ -230,6 +233,20 @@ export class App {
     }
 
     this._renderHistory();
+  }
+
+  _renderGuide() {
+    const list = this._dom.guide;
+    if (!list) return;
+    list.replaceChildren(...GESTURE_CATALOG.map((entry) => {
+      const item = document.createElement("li");
+      const name = document.createElement("strong");
+      name.textContent = entry.holdMs > 0 ? `${entry.label} (${formatHold(entry.holdMs)})` : entry.label;
+      const action = document.createElement("span");
+      action.textContent = entry.action;
+      item.append(name, action);
+      return item;
+    }));
   }
 
   _renderHistory() {
