@@ -8,7 +8,7 @@ import { GestureRecognizer } from "./gesture-recognizer.js";
 import { Scene3D } from "./scene-3d.js";
 import { FPSCounter } from "./utils.js";
 import { GESTURE_CATALOG, UI_CONFIG } from "./config.js";
-import { cameraErrorMessage, formatHold } from "./format.js";
+import { cameraErrorMessage, formatHold, formatPose } from "./format.js";
 
 export class App {
   constructor() {
@@ -49,6 +49,10 @@ export class App {
       alert: ["camera-alert"],
       alertMessage: ["camera-alert-message"],
       retry: ["retry-btn"],
+      poseShape: ["object-type"],
+      posePosition: ["object-position"],
+      poseRotation: ["object-rotation"],
+      poseScale: ["object-scale"],
     };
 
     for (const key of Object.keys(aliases)) {
@@ -324,6 +328,22 @@ export class App {
       const element = this._dom.fps;
       if (element) element.textContent = `FPS: ${this._fps.value}`;
     }, UI_CONFIG.FPS_UPDATE_INTERVAL_MS);
+    this._renderPose();
+    setInterval(() => this._renderPose(), UI_CONFIG.POSE_UPDATE_MS);
+  }
+
+  _renderPose() {
+    if (!this._scene) return;
+    const text = formatPose(this._scene.getPose());
+    const fields = [
+      [this._dom.poseShape, text.shape],
+      [this._dom.posePosition, text.position],
+      [this._dom.poseRotation, text.rotation],
+      [this._dom.poseScale, text.scale],
+    ];
+    for (const [element, value] of fields) {
+      if (element && element.textContent !== value) element.textContent = value;
+    }
   }
 }
 

@@ -97,6 +97,17 @@ export class Scene3D {
   get currentShape()   { return SHAPE_REGISTRY[this._shapeIndex].name; }
   get currentScale()   { return this._scale; }
 
+  /** Snapshot of the transform shown to the user (rotation in radians). */
+  getPose() {
+    return {
+      shape: this.currentShape,
+      colorIndex: this._colorIndex,
+      position: { ...this._position },
+      rotation: { ...this._rotation },
+      scale: this._scale,
+    };
+  }
+
   _initRenderer() {
     this._renderer = new THREE.WebGLRenderer({ canvas: this._canvas, antialias: true, alpha: true });
     this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));

@@ -12,6 +12,12 @@ test('keyboard controls the object without a camera', async ({ page }) => {
   }));
   expect(state.shape).toBe('sphere');
   expect(state.scale).toBeGreaterThan(1);
+  // The textual pose follows the scene state.
+  await expect(page.locator('#object-type')).toHaveText('Esfera');
+  await expect(page.locator('#object-scale')).toHaveText('1,05×');
+  await expect(page.locator('#object-position')).toHaveText('x 0,15 · y 0,00');
+  await page.keyboard.press('r');
+  await expect(page.locator('#object-scale')).toHaveText('1,0×');
   expect(apiCalls).toEqual([]);
 });
 

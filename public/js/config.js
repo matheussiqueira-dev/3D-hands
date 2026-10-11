@@ -70,6 +70,7 @@ export const UI_CONFIG = Object.freeze({
   GESTURE_DISPLAY_DURATION_MS: 1500,
   HISTORY_MAX_ENTRIES: 12,
   TELEMETRY_UPDATE_MS: 100,
+  POSE_UPDATE_MS: 500, // pose readout refresh: at most twice per second
   STATUS_FADE_MS: 300,
 });
 

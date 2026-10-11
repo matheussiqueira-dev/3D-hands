@@ -36,3 +36,30 @@ export const CAMERA_ERROR_MESSAGES = Object.freeze({
 export function cameraErrorMessage(code) {
   return CAMERA_ERROR_MESSAGES[code] ?? CAMERA_ERROR_MESSAGES.unknown;
 }
+
+export const SHAPE_LABELS = Object.freeze({
+  cube: 'Cubo', sphere: 'Esfera', cone: 'Cone', torus: 'Toro', dodecahedron: 'Dodecaedro',
+});
+
+const coord = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const degrees = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
+const factor = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+
+/** Radians to whole degrees in [0, 360). */
+function toDegrees(rad) {
+  const deg = Math.round((rad * 180) / Math.PI) % 360;
+  return deg < 0 ? deg + 360 : deg;
+}
+
+/**
+ * Text version of the scene pose (the canvas's textual alternative).
+ * @param {{ shape: string, position: {x:number,y:number}, rotation: {x:number,y:number}, scale: number }} pose
+ */
+export function formatPose(pose) {
+  return {
+    shape: SHAPE_LABELS[pose.shape] ?? pose.shape,
+    position: `x ${coord.format(pose.position.x)} · y ${coord.format(pose.position.y)}`,
+    rotation: `x ${degrees.format(toDegrees(pose.rotation.x))}° · y ${degrees.format(toDegrees(pose.rotation.y))}°`,
+    scale: `${factor.format(pose.scale)}×`,
+  };
+}
