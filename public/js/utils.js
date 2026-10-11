@@ -1,7 +1,7 @@
 /**
  * Shared Utility Library — Math, FPS, Smoothing
  * Pure utility functions with no side effects.
- * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  utils
  */
 

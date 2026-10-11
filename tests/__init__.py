@@ -1,1 +1,1 @@
-# Author: Matheus Siqueira <https://www.matheussiqueira.dev/>
+# Author: Matheus Siqueira <https://www.matheussiqueira.dev>

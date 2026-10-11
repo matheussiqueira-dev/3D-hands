@@ -1,7 +1,7 @@
 /**
  * Application Configuration — Central Constants Module
  * Single source of truth for all tunable parameters.
- * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  config
  */
 

@@ -2,7 +2,7 @@
  * Browser-Side Gesture Recognition Engine
  * Converts raw MediaPipe landmark arrays into semantic gesture commands.
  * Uses rule-based detection with temporal debouncing to prevent flickering.
- * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  gesture-recognizer
  */
 

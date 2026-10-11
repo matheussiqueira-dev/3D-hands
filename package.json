@@ -1,12 +1,26 @@
 {
-  "name": "3d-hands-web",
+  "name": "3d-hands",
   "version": "1.0.0",
-  "description": "3D Hand Gesture Recognition - Web Version",
-  "main": "public/index.html",
+  "private": true,
+  "description": "Controle um objeto 3D com gestos da mão no navegador (Three.js + MediaPipe Hands), com app desktop em Python.",
+  "author": "Matheus Siqueira <hellomatheusdev@gmail.com> (https://www.matheussiqueira.dev)",
+  "homepage": "https://3-d-hands.vercel.app",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matheussiqueira-dev/3D-hands.git"
+  },
+  "bugs": {
+    "url": "https://github.com/matheussiqueira-dev/3D-hands/issues"
+  },
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "npx --yes vercel@54.9.1 dev",
     "serve": "node scripts/serve.mjs",
-    "build": "echo Static site - no build needed",
+    "build": "node scripts/write-version.mjs",
     "check": "node scripts/check-syntax.mjs",
     "test": "node --test \"tests-web/**/*.test.mjs\"",
     "test:e2e": "playwright test",
@@ -19,13 +33,8 @@
     "threejs",
     "webgl"
   ],
-  "author": "Matheus Siqueira",
-  "license": "MIT",
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
     "@playwright/test": "1.63.0"
-  },
-  "engines": {
-    "node": ">=22"
   }
 }

@@ -1,7 +1,7 @@
 /**
  * Browser Hand Tracking — MediaPipe Hands Wrapper
  * Manages camera stream, MediaPipe model lifecycle, and landmark extraction.
- * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  hand-tracker
  */
 

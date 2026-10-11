@@ -20,7 +20,7 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: `node scripts/serve.mjs`,
+    command: 'node scripts/write-version.mjs && node scripts/serve.mjs',
     env: { PORT: String(PORT) },
     url: `http://127.0.0.1:${PORT}/`,
     reuseExistingServer: !process.env.CI,

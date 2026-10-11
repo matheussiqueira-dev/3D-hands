@@ -1,4 +1,4 @@
-"""Shared pytest fixtures. Author: Matheus Siqueira <https://www.matheussiqueira.dev/>"""
+"""Shared pytest fixtures. Author: Matheus Siqueira <https://www.matheussiqueira.dev>"""
 from __future__ import annotations
 import pytest
 

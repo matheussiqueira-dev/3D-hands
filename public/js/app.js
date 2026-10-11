@@ -54,6 +54,22 @@ export class App {
     this._startTelemetry();
     this._renderHistory();
     this._setCameraState("off");
+    this._renderBuildInfo();
+  }
+
+  /** Appends the deployed commit to the footer meta line, when the build wrote one. */
+  async _renderBuildInfo() {
+    try {
+      const response = await fetch("/version.json", { cache: "no-store" });
+      if (!response.ok) return;
+      const info = await response.json();
+      const valid = typeof info?.version === "string" && /^[0-9a-f]{7}$/.test(info?.commit ?? "");
+      if (valid && this._dom.footerMeta) {
+        this._dom.footerMeta.textContent = `3D Hands · v${info.version} · ${info.commit}`;
+      }
+    } catch {
+      // Static fallback in the HTML already shows the version.
+    }
   }
 
   _bindDom() {
@@ -65,6 +81,7 @@ export class App {
       panel: "gesture-panel", alert: "camera-alert", alertMessage: "camera-alert-message", retry: "retry-btn",
       poseShape: "object-type", poseColor: "object-color", posePosition: "object-position",
       poseRotation: "object-rotation", poseScale: "object-scale", announcer: "announcer",
+      footerMeta: "footer-meta",
     };
     for (const [key, id] of Object.entries(ids)) {
       this._dom[key] = document.getElementById(id);

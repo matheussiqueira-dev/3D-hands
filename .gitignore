@@ -42,3 +42,6 @@ Thumbs.db
 test-results/
 playwright-report/
 .pytest_cache/
+
+# Generated at build time
+public/version.json

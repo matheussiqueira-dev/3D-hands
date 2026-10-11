@@ -1,7 +1,7 @@
 /**
  * Three.js 3D Scene Manager
  * Manages WebGL scene, object lifecycle, and gesture-driven transforms.
- * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  scene-3d
  */
 
