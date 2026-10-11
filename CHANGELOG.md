@@ -1,0 +1,42 @@
+# Changelog
+
+Todas as mudanças relevantes deste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), com versionamento [SemVer](https://semver.org/lang/pt-BR/).
+
+## [1.1.0] - 2026-10-11
+
+### Adicionado
+- Painel de comando de gestos: uma linha por gesto suportado, com a ação e uma barra que mostra o tempo real de retenção do punho (2 s), do sinal de V (1 s) e dos três dedos (0,8 s).
+- Leitura textual da pose (forma, cor, posição, rotação e escala) ligada ao estado real da cena, e anúncios para leitor de tela quando a forma, a cor ou a câmera mudam.
+- Mensagens de erro de câmera em PT-BR na tela (bloqueada, ausente, em uso, sem suporte, falha do modelo), com "Tentar novamente".
+- Botão "Redefinir objeto", link "Usar só o teclado" e chips de estado da câmera, das mãos e do FPS medido.
+- Testes unitários do reconhecedor com landmarks sintéticos (`node --test`), testes Playwright (teclado, câmera falsa sob a CSP, câmera negada, overflow de 320 a 1440 px, axe) e CI no GitHub Actions com pytest, pip-audit, npm audit e cobertura mínima de 80%.
+- Favicon com o monograma 3D, ícones, imagem Open Graph, metadados de autoria, JSON-LD e rodapé padrão com versão e commit.
+
+### Alterado
+- Interface refeita sobre o design system `ms-tokens.css` v1.0, com IBM Plex Sans self-hosted, layout com a cena 3D em destaque e textos em PT-BR.
+- `vercel.json` migrado de `builds`/`routes` para `outputDirectory`, com CSP, `Permissions-Policy`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` e cache imutável para fontes.
+- Three.js e MediaPipe Hands com versão fixa e SRI; `camera_utils` e `drawing_utils`, que não eram usados, saíram.
+- Cores do objeto, do fundo e dos landmarks lidas dos tokens.
+- Títulos das janelas do app desktop passam a "3D Hands" e "3D Hands - Debug".
+- README único em PT-BR; `.env.example` agora lista as variáveis `GESTURE_*` que o app desktop realmente lê.
+
+### Corrigido
+- O guia de gestos prometia "polegar para cima/baixo", que não existem, e "três dedos por 0,6 s" (o código usa 0,8 s); agora ele é gerado da mesma lista que o reconhecedor usa.
+- A interface mostrava porcentagens de confiança constantes (90%, 85%, 95%); foram trocadas pelo progresso medido da retenção.
+- O gesto de girar disparava durante o sinal de V e os três dedos, e a pinça podia mudar a escala durante o punho.
+- O punho mantido redefinia o objeto a cada quadro; gestos com retenção agora disparam uma vez por retenção.
+- O painel de pose mostrava valores fixos ("Cubo", "0, 0, 0") que nunca mudavam.
+- O canvas 3D não acompanhava o tamanho do palco.
+- Overflow horizontal em telas de 320 px.
+
+### Removido
+- Link de WhatsApp com telefone pessoal.
+- Função `api/gesture.js`, que nunca foi publicada (404), e o envio de cada gesto para ela.
+- `CONVERSION-SUMMARY.md`, `README-VERCEL.md`, `QUICKSTART.md`, `DEPLOY-CHECKLIST.md`, `RELEASE.md` e `public/test.html`.
+
+## [1.0.0] - 2026-06-05
+
+- Versão inicial publicada: cena Three.js controlada por gestos no navegador e app desktop em Python.
+
+[1.1.0]: https://github.com/matheussiqueira-dev/3D-hands/compare/f481529...v1.1.0
+[1.0.0]: https://github.com/matheussiqueira-dev/3D-hands/tree/f481529

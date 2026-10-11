@@ -1,6 +1,6 @@
 {
   "name": "3d-hands",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "Controle um objeto 3D com gestos da mão no navegador (Three.js + MediaPipe Hands), com app desktop em Python.",
   "author": "Matheus Siqueira <hellomatheusdev@gmail.com> (https://www.matheussiqueira.dev)",
