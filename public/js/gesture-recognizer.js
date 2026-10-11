@@ -48,13 +48,13 @@ export class GestureRecognizer {
     const pinch = this._detectPinch(hand1);
     if (pinch) results.push(pinch);
 
-    const twoFinger = this._detectTwoFingers(hand1, fingers, extCount);
+    const twoFinger = this._detectTwoFingers(hand1, fingers);
     if (twoFinger)   results.push(twoFinger);
 
     const fist = this._detectFist(extCount);
     if (fist)  results.push(fist);
 
-    const vSign = this._detectVSign(fingers);
+    const vSign = this._detectVSign(hand1, fingers);
     if (vSign) results.push(vSign);
 
     const three = this._detectThreeFingers(fingers, extCount);
@@ -143,8 +143,19 @@ export class GestureRecognizer {
     };
   }
 
-  _detectTwoFingers(lm, fingers, extCount) {
-    if (!fingers.index || !fingers.middle || extCount > 3) return null;
+  /** Index and middle up, ring and pinky down; the thumb is ignored. */
+  _isTwoFingerPose(fingers) {
+    return fingers.index && fingers.middle && !fingers.ring && !fingers.pinky;
+  }
+
+  /** Gap between index and middle tips relative to the palm length. */
+  _fingerSpreadRatio(lm) {
+    const palm = this._dist(lm[WRIST], lm[MCPS.middle]);
+    return palm > 0 ? this._dist(lm[TIPS.index], lm[TIPS.middle]) / palm : 0;
+  }
+
+  _detectTwoFingers(lm, fingers) {
+    if (!this._isTwoFingerPose(fingers) || this._fingerSpreadRatio(lm) >= this._cfg.V_SIGN_MIN_SPREAD_RATIO) return null;
     const a = lm[TIPS.index], b = lm[TIPS.middle];
     return { name: 'two_fingers', active: true, confidence: 0.85,
       data: { angle: Math.atan2(b.y - a.y, b.x - a.x), spread: this._dist(a, b) } };
@@ -156,8 +167,8 @@ export class GestureRecognizer {
     return { name: 'fist', active: ok, confidence: ok ? 1.0 : 0.3, data: null };
   }
 
-  _detectVSign(fingers) {
-    if (!fingers.index || !fingers.middle || fingers.ring || fingers.pinky) {
+  _detectVSign(lm, fingers) {
+    if (!this._isTwoFingerPose(fingers) || this._fingerSpreadRatio(lm) < this._cfg.V_SIGN_MIN_SPREAD_RATIO) {
       this._holdTimers.delete('v_sign'); return null;
     }
     const ok = this._checkHold('v_sign', this._cfg.V_SIGN_HOLD_MS);

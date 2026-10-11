@@ -10,6 +10,9 @@ export const GESTURE_CONFIG = Object.freeze({
   PINCH_RELEASE_THRESHOLD: 0.08,
   FINGER_EXTENDED_RATIO:   1.05,
   THUMB_EXTENDED_X_DELTA:  0.04,
+  // Index-to-middle tip gap divided by palm length (wrist to middle knuckle):
+  // below it the two fingers are "together" (rotate), at or above it a V sign.
+  V_SIGN_MIN_SPREAD_RATIO: 0.35,
   FIST_HOLD_MS:         2000,
   V_SIGN_HOLD_MS:       1000,
   THREE_FINGER_HOLD_MS:  800,
