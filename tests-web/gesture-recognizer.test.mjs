@@ -105,3 +105,22 @@ test('releasing the pose restarts the hold', () => {
   clock.advance(100);
   assert.equal(r.recognize(POSES.fist()).find((g) => g.name === 'fist').progress, 0);
 });
+
+test('a hold gesture fires once per hold, not on every frame', () => {
+  const clock = fakeClock();
+  const r = new GestureRecognizer({}, { now: clock.now });
+  const fist = () => r.recognize(POSES.fist()).find((g) => g.name === 'fist');
+  fist();
+  clock.advance(2000);
+  assert.equal(fist().active, true);
+  clock.advance(16);
+  const after = fist();
+  assert.equal(after.active, false);
+  assert.equal(after.progress, 1);
+  clock.advance(5000);
+  assert.equal(fist().active, false);
+  r.recognize(POSES.openPalm());
+  fist();
+  clock.advance(2000);
+  assert.equal(fist().active, true);
+});

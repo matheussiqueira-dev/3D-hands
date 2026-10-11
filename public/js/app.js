@@ -103,7 +103,7 @@ export class App {
       return;
     }
 
-    const holding = gestures.find((g) => typeof g.progress === "number" && !g.active);
+    const holding = gestures.find((g) => typeof g.progress === "number" && g.progress < 1);
     if (holding) {
       this._updateGestureDisplay(holding.name, holding.progress);
       return;
@@ -132,12 +132,10 @@ export class App {
         break;
       case "v_sign":
         this._scene.nextShape();
-        this._recognizer.resetTimer("v_sign");
         this._setStatus("info", `Shape: ${this._scene.currentShape}`);
         break;
       case "three_fingers":
         this._scene.nextColor();
-        this._recognizer.resetTimer("three_fingers");
         break;
       case "dual_hands":
         if (gesture.data?.scaleDelta) {

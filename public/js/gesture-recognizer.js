@@ -27,6 +27,8 @@ const WRIST = 0;
  *
  * Hold gestures (fist, v_sign, three_fingers) report `progress` from 0 to 1:
  * the measured fraction of their hold time, not a detection confidence.
+ * A hold fires (`active: true`) on exactly one frame; the pose must be
+ * released before the same gesture can fire again.
  */
 export class GestureRecognizer {
   /**
@@ -37,6 +39,7 @@ export class GestureRecognizer {
     this._cfg        = Object.freeze({ ...GESTURE_CONFIG, ...overrides });
     this._now        = now;
     this._holdTimers = new Map();
+    this._firedHolds = new Set();
     this._prevPalmCenter  = null;
     this._prevHandDist    = null;
   }
@@ -44,7 +47,7 @@ export class GestureRecognizer {
   // ── Public API ──────────────────────────────────────────────────────────────
 
   recognize(hand1, hand2 = null) {
-    if (!this._isValidHand(hand1)) { this._holdTimers.clear(); this._prevPalmCenter = null; return []; }
+    if (!this._isValidHand(hand1)) { this._clearHolds(); this._prevPalmCenter = null; return []; }
 
     const fingers  = this._getFingerStates(hand1);
     const extCount = Object.values(fingers).filter(Boolean).length;
@@ -87,10 +90,8 @@ export class GestureRecognizer {
     return results.find(r => r.active) ?? null;
   }
 
-  resetTimer(key) { this._holdTimers.delete(key); }
-
   reset() {
-    this._holdTimers.clear();
+    this._clearHolds();
     this._prevPalmCenter = null;
     this._prevHandDist   = null;
   }
@@ -169,20 +170,20 @@ export class GestureRecognizer {
   }
 
   _detectFist(extCount) {
-    if (extCount > 1) { this._holdTimers.delete('fist'); return null; }
+    if (extCount > 1) { this._releaseHold('fist'); return null; }
     return this._holdResult('fist', this._cfg.FIST_HOLD_MS);
   }
 
   _detectVSign(lm, fingers) {
     if (!this._isTwoFingerPose(fingers) || this._fingerSpreadRatio(lm) < this._cfg.V_SIGN_MIN_SPREAD_RATIO) {
-      this._holdTimers.delete('v_sign'); return null;
+      this._releaseHold('v_sign'); return null;
     }
     return this._holdResult('v_sign', this._cfg.V_SIGN_HOLD_MS);
   }
 
   _detectThreeFingers(fingers, extCount) {
     if (extCount !== this._cfg.MIN_THREE_FINGERS || !fingers.index || !fingers.middle || !fingers.ring) {
-      this._holdTimers.delete('three_fingers'); return null;
+      this._releaseHold('three_fingers'); return null;
     }
     return this._holdResult('three_fingers', this._cfg.THREE_FINGER_HOLD_MS);
   }
@@ -210,6 +211,18 @@ export class GestureRecognizer {
     const now = this._now();
     if (!this._holdTimers.has(key)) this._holdTimers.set(key, now);
     const progress = Math.min(1, (now - this._holdTimers.get(key)) / durationMs);
-    return { name: key, active: progress >= 1, progress, holdMs: durationMs, data: null };
+    const fires = progress >= 1 && !this._firedHolds.has(key);
+    if (fires) this._firedHolds.add(key);
+    return { name: key, active: fires, progress, holdMs: durationMs, data: null };
+  }
+
+  _releaseHold(key) {
+    this._holdTimers.delete(key);
+    this._firedHolds.delete(key);
+  }
+
+  _clearHolds() {
+    this._holdTimers.clear();
+    this._firedHolds.clear();
   }
 }
