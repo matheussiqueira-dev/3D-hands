@@ -54,3 +54,54 @@ test('two hands produce the dual-hand scale gesture', () => {
   assert.ok(dual.data.scaleDelta > 0);
   assert.equal(r.getPrimaryGesture(spread).name, 'dual_hands');
 });
+
+function fakeClock(start = 0) {
+  let t = start;
+  return { now: () => t, advance: (ms) => { t += ms; } };
+}
+
+test('no gesture reports a confidence value', () => {
+  const r = new GestureRecognizer();
+  for (const pose of Object.values(POSES)) {
+    for (const g of r.recognize(pose())) assert.equal('confidence' in g, false, g.name);
+  }
+});
+
+test('hold progress follows the real elapsed time', () => {
+  const clock = fakeClock();
+  const r = new GestureRecognizer({}, { now: clock.now });
+  const at = () => r.recognize(POSES.fist()).find((g) => g.name === 'fist');
+  assert.equal(at().progress, 0);
+  clock.advance(500);
+  assert.equal(at().progress, 0.25);
+  clock.advance(500);
+  const half = at();
+  assert.equal(half.progress, 0.5);
+  assert.equal(half.active, false);
+  clock.advance(1000);
+  const done = at();
+  assert.equal(done.progress, 1);
+  assert.equal(done.active, true);
+});
+
+test('hold timers use the configured durations', () => {
+  const clock = fakeClock();
+  const r = new GestureRecognizer({}, { now: clock.now });
+  r.recognize(POSES.threeFingers());
+  clock.advance(400);
+  assert.equal(r.recognize(POSES.threeFingers()).find((g) => g.name === 'three_fingers').progress, 0.5);
+  const v = new GestureRecognizer({}, { now: clock.now });
+  v.recognize(POSES.vSign());
+  clock.advance(1000);
+  assert.equal(v.recognize(POSES.vSign()).find((g) => g.name === 'v_sign').active, true);
+});
+
+test('releasing the pose restarts the hold', () => {
+  const clock = fakeClock();
+  const r = new GestureRecognizer({}, { now: clock.now });
+  r.recognize(POSES.fist());
+  clock.advance(1500);
+  r.recognize(POSES.openPalm());
+  clock.advance(100);
+  assert.equal(r.recognize(POSES.fist()).find((g) => g.name === 'fist').progress, 0);
+});

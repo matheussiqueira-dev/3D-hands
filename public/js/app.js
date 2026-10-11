@@ -98,8 +98,14 @@ export class App {
 
     if (primary?.active) {
       this._applyToScene(primary);
-      this._updateGestureDisplay(primary.name, primary.confidence);
-      this._recordHistory(primary.name, primary.confidence);
+      this._updateGestureDisplay(primary.name);
+      this._recordHistory(primary.name);
+      return;
+    }
+
+    const holding = gestures.find((g) => typeof g.progress === "number" && !g.active);
+    if (holding) {
+      this._updateGestureDisplay(holding.name, holding.progress);
       return;
     }
 
@@ -212,13 +218,12 @@ export class App {
     if (this._dom.stop) this._dom.stop.disabled = true;
   }
 
-  _recordHistory(gesture, confidence) {
+  _recordHistory(gesture) {
     if (gesture === this._lastGesture) return;
 
     this._lastGesture = gesture;
     this._history.unshift({
       gesture,
-      confidence: Math.round(confidence * 100),
       timestamp: new Date().toLocaleTimeString(),
     });
 
@@ -241,18 +246,20 @@ export class App {
     list.innerHTML = this._history
       .map(
         (entry) =>
-          `<li class="history-entry"><span class="history-gesture">${entry.gesture.replace(/_/g, " ")}</span><span class="history-meta">${entry.confidence}% &middot; ${entry.timestamp}</span></li>`
+          `<li class="history-entry"><span class="history-gesture">${entry.gesture.replace(/_/g, " ")}</span><span class="history-meta">${entry.timestamp}</span></li>`
       )
       .join("");
   }
 
-  _updateGestureDisplay(gesture, confidence) {
+  /** @param {string} gesture @param {number} [holdProgress] measured hold fraction, 0 to 1 */
+  _updateGestureDisplay(gesture, holdProgress) {
     const element = this._dom.gesture;
     if (!element) return;
 
-    element.textContent = confidence
-      ? `${gesture.replace(/_/g, " ")} (${Math.round(confidence * 100)}%)`
-      : gesture;
+    const label = gesture.replace(/_/g, " ");
+    element.textContent = typeof holdProgress === "number"
+      ? `${label} (hold ${Math.round(holdProgress * 100)}%)`
+      : label;
   }
 
   _setStatus(type, message) {

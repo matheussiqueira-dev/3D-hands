@@ -24,10 +24,18 @@ const WRIST = 0;
  * const recognizer = new GestureRecognizer();
  * const results    = recognizer.recognize(landmarks);
  * const primary    = recognizer.getPrimaryGesture(results);
+ *
+ * Hold gestures (fist, v_sign, three_fingers) report `progress` from 0 to 1:
+ * the measured fraction of their hold time, not a detection confidence.
  */
 export class GestureRecognizer {
-  constructor(overrides = {}) {
+  /**
+   * @param {Partial<typeof GESTURE_CONFIG>} [overrides]
+   * @param {{ now?: () => number }} [deps] clock in milliseconds (injectable for tests)
+   */
+  constructor(overrides = {}, { now = () => performance.now() } = {}) {
     this._cfg        = Object.freeze({ ...GESTURE_CONFIG, ...overrides });
+    this._now        = now;
     this._holdTimers = new Map();
     this._prevPalmCenter  = null;
     this._prevHandDist    = null;
@@ -130,7 +138,7 @@ export class GestureRecognizer {
       if (Math.abs(delta.y) < this._cfg.TRANSLATION_DEADZONE) delta.y = 0;
     }
     this._prevPalmCenter = center;
-    return { name: 'open_palm', active: true, confidence: 0.90, data: { delta, center } };
+    return { name: 'open_palm', active: true, data: { delta, center } };
   }
 
   _detectPinch(lm) {
@@ -138,7 +146,6 @@ export class GestureRecognizer {
     const active = d < this._cfg.PINCH_THRESHOLD;
     return {
       name: 'pinch', active,
-      confidence: active ? Math.max(0, 1 - d / this._cfg.PINCH_THRESHOLD) : 0,
       data: { distance: d, center: { x: (lm[TIPS.thumb].x + lm[TIPS.index].x) / 2, y: (lm[TIPS.thumb].y + lm[TIPS.index].y) / 2 } },
     };
   }
@@ -157,30 +164,27 @@ export class GestureRecognizer {
   _detectTwoFingers(lm, fingers) {
     if (!this._isTwoFingerPose(fingers) || this._fingerSpreadRatio(lm) >= this._cfg.V_SIGN_MIN_SPREAD_RATIO) return null;
     const a = lm[TIPS.index], b = lm[TIPS.middle];
-    return { name: 'two_fingers', active: true, confidence: 0.85,
+    return { name: 'two_fingers', active: true,
       data: { angle: Math.atan2(b.y - a.y, b.x - a.x), spread: this._dist(a, b) } };
   }
 
   _detectFist(extCount) {
     if (extCount > 1) { this._holdTimers.delete('fist'); return null; }
-    const ok = this._checkHold('fist', this._cfg.FIST_HOLD_MS);
-    return { name: 'fist', active: ok, confidence: ok ? 1.0 : 0.3, data: null };
+    return this._holdResult('fist', this._cfg.FIST_HOLD_MS);
   }
 
   _detectVSign(lm, fingers) {
     if (!this._isTwoFingerPose(fingers) || this._fingerSpreadRatio(lm) < this._cfg.V_SIGN_MIN_SPREAD_RATIO) {
       this._holdTimers.delete('v_sign'); return null;
     }
-    const ok = this._checkHold('v_sign', this._cfg.V_SIGN_HOLD_MS);
-    return { name: 'v_sign', active: ok, confidence: ok ? 1.0 : 0.5, data: null };
+    return this._holdResult('v_sign', this._cfg.V_SIGN_HOLD_MS);
   }
 
   _detectThreeFingers(fingers, extCount) {
     if (extCount !== this._cfg.MIN_THREE_FINGERS || !fingers.index || !fingers.middle || !fingers.ring) {
       this._holdTimers.delete('three_fingers'); return null;
     }
-    const ok = this._checkHold('three_fingers', this._cfg.THREE_FINGER_HOLD_MS);
-    return { name: 'three_fingers', active: ok, confidence: ok ? 1.0 : 0.5, data: null };
+    return this._holdResult('three_fingers', this._cfg.THREE_FINGER_HOLD_MS);
   }
 
   _detectDualHandScale(h1, h2) {
@@ -189,7 +193,7 @@ export class GestureRecognizer {
       ? (Math.abs(d - this._prevHandDist) < this._cfg.SCALE_DEADZONE ? 0 : d - this._prevHandDist)
       : 0;
     this._prevHandDist = d;
-    return { name: 'dual_hands', active: true, confidence: 0.95, data: { scaleDelta, handDistance: d } };
+    return { name: 'dual_hands', active: true, data: { scaleDelta, handDistance: d } };
   }
 
   // ── Utilities ───────────────────────────────────────────────────────────────
@@ -201,9 +205,11 @@ export class GestureRecognizer {
     return { x: sx / PALM_INDICES.length, y: sy / PALM_INDICES.length };
   }
 
-  _checkHold(key, durationMs) {
-    const now = performance.now();
-    if (!this._holdTimers.has(key)) { this._holdTimers.set(key, now); return false; }
-    return now - this._holdTimers.get(key) >= durationMs;
+  /** Starts or continues the hold timer for `key` and reports its progress. */
+  _holdResult(key, durationMs) {
+    const now = this._now();
+    if (!this._holdTimers.has(key)) this._holdTimers.set(key, now);
+    const progress = Math.min(1, (now - this._holdTimers.get(key)) / durationMs);
+    return { name: key, active: progress >= 1, progress, holdMs: durationMs, data: null };
   }
 }
