@@ -5,7 +5,11 @@
   "main": "public/index.html",
   "scripts": {
     "dev": "npx --yes vercel@54.9.1 dev",
-    "build": "echo 'Static site - no build needed'",
+    "serve": "node scripts/serve.mjs",
+    "build": "echo Static site - no build needed",
+    "check": "node scripts/check-syntax.mjs",
+    "test": "node --test tests-web/",
+    "test:e2e": "playwright test",
     "deploy": "npx --yes vercel@54.9.1 --prod"
   },
   "keywords": [
@@ -16,5 +20,12 @@
     "webgl"
   ],
   "author": "Matheus Siqueira",
-  "license": "MIT"
+  "license": "MIT",
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@playwright/test": "1.63.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
 }
