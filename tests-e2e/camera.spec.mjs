@@ -20,5 +20,6 @@ test('hand tracking starts with a fake camera under the CSP', async ({ page }) =
   await expect.poll(() => page.evaluate(() => window.__app?._tracker?.isRunning), { timeout: 45_000 }).toBe(true);
   // The model is processing frames: results arrive even without a hand in view.
   await expect.poll(() => page.evaluate(() => window.__app._fps.value), { timeout: 30_000 }).toBeGreaterThan(0);
+  expect(await page.evaluate(() => Array.isArray(window.HAND_CONNECTIONS))).toBe(true);
   expect(problems.filter((p) => /Content Security Policy|Refused/i.test(p))).toEqual([]);
 });

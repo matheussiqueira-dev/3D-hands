@@ -37,6 +37,9 @@ export const CAMERA_CONFIG = Object.freeze({
   WIDTH: 1280, HEIGHT: 720, FACING_MODE: 'user', IDEAL_FPS: 30, MAX_FPS: 60,
 });
 
+/** Must match the @mediapipe/hands version loaded by index.html. */
+export const MEDIAPIPE_HANDS_BASE_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/';
+
 export const TRACKING_CONFIG = Object.freeze({
   MAX_HANDS: 2, MODEL_COMPLEXITY: 1,
   MIN_DETECTION_CONF: 0.7, MIN_TRACKING_CONF: 0.5,

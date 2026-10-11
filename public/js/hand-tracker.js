@@ -5,7 +5,7 @@
  * @module  hand-tracker
  */
 
-import { CAMERA_CONFIG, TRACKING_CONFIG } from './config.js';
+import { CAMERA_CONFIG, MEDIAPIPE_HANDS_BASE_URL, TRACKING_CONFIG } from './config.js';
 
 export class HandTracker {
   constructor(videoEl, overlayEl, camCfg = {}, trackCfg = {}) {
@@ -67,7 +67,7 @@ export class HandTracker {
     if (typeof window.Hands === 'undefined')
       throw new Error('MediaPipe Hands is not loaded. Ensure the CDN script is included.');
     this._hands = new window.Hands({
-      locateFile: file => 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/' + file,
+      locateFile: file => MEDIAPIPE_HANDS_BASE_URL + file,
     });
     this._hands.setOptions({
       maxNumHands:            this._trackCfg.MAX_HANDS,
