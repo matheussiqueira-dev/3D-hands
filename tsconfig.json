@@ -19,6 +19,7 @@
     "public/js/utils.js",
     "public/js/gesture-recognizer.js",
     "public/js/scene-actions.js",
-    "public/js/camera-state.js"
+    "public/js/camera-state.js",
+    "public/js/model-file.js"
   ]
 }
