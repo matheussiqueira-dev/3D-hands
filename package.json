@@ -25,7 +25,8 @@
     "test": "node --test \"tests-web/**/*.test.mjs\"",
     "test:e2e": "playwright test",
     "deploy": "npx --yes vercel@54.9.1 --prod",
-    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-include=public/js/gesture-recognizer.js --test-coverage-include=public/js/format.js --test-coverage-include=public/js/config.js \"tests-web/**/*.test.mjs\""
+    "test:coverage": "node --test --experimental-test-coverage --test-coverage-lines=80 --test-coverage-include=public/js/gesture-recognizer.js --test-coverage-include=public/js/format.js --test-coverage-include=public/js/config.js \"tests-web/**/*.test.mjs\"",
+    "typecheck": "tsc -p tsconfig.json"
   },
   "keywords": [
     "hand-tracking",
@@ -36,6 +37,7 @@
   ],
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
-    "@playwright/test": "1.63.0"
+    "@playwright/test": "1.63.0",
+    "typescript": "6.0.3"
   }
 }

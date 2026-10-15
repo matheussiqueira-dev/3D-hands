@@ -24,7 +24,7 @@ export function formatGestureLine(entry) {
 
 const KEYBOARD_HINT = 'Use as setas, N, C, R e +/− para controlar o objeto.';
 
-/** User-facing PT-BR message for a CameraError code (see hand-tracker.js). */
+/** User-facing PT-BR message for a CameraError code (see hand-tracker.js). @type {Readonly<Record<string, string>>} */
 export const CAMERA_ERROR_MESSAGES = Object.freeze({
   denied: 'A câmera foi bloqueada. Libere o acesso no cadeado da barra de endereço e clique em Tentar novamente.',
   'not-found': `Nenhuma câmera encontrada. ${KEYBOARD_HINT}`,
@@ -36,9 +36,10 @@ export const CAMERA_ERROR_MESSAGES = Object.freeze({
 
 /** @param {string | undefined} code */
 export function cameraErrorMessage(code) {
-  return CAMERA_ERROR_MESSAGES[code] ?? CAMERA_ERROR_MESSAGES.unknown;
+  return (code && CAMERA_ERROR_MESSAGES[code]) || CAMERA_ERROR_MESSAGES.unknown;
 }
 
+/** @type {Readonly<Record<string, string>>} */
 const GESTURE_LABELS = Object.freeze(Object.fromEntries(GESTURE_CATALOG.map((g) => [g.id, g.label])));
 
 /** @param {string} id @returns {string} PT-BR gesture name */
@@ -54,15 +55,25 @@ export function formatHistoryEntry(entry) {
   return [gestureLabel(entry.gesture), entry.detail, entry.time].filter(Boolean).join(' · ');
 }
 
+/** @type {Readonly<Record<string, string>>} */
 export const SHAPE_LABELS = Object.freeze({
   cube: 'Cubo', sphere: 'Esfera', cone: 'Cone', torus: 'Toro', dodecahedron: 'Dodecaedro',
 });
+
+/**
+ * PT-BR name of the current shape; a loaded model shows its file name.
+ * @param {string} shape @param {string | null} [modelName] @returns {string}
+ */
+export function shapeLabel(shape, modelName = null) {
+  if (shape === 'custom') return `Modelo: ${modelName ?? 'próprio'}`;
+  return SHAPE_LABELS[shape] ?? shape;
+}
 
 const coord = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const degrees = new Intl.NumberFormat('pt-BR', { maximumFractionDigits: 0 });
 const factor = new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 
-/** Radians to whole degrees in [0, 360). */
+/** Radians to whole degrees in [0, 360). @param {number} rad */
 function toDegrees(rad) {
   const deg = Math.round((rad * 180) / Math.PI) % 360;
   return deg < 0 ? deg + 360 : deg;
@@ -70,11 +81,11 @@ function toDegrees(rad) {
 
 /**
  * Text version of the scene pose (the canvas's textual alternative).
- * @param {{ shape: string, colorIndex: number, position: {x:number,y:number}, rotation: {x:number,y:number}, scale: number }} pose
+ * @param {{ shape: string, modelName?: string | null, colorIndex: number, position: {x:number,y:number}, rotation: {x:number,y:number}, scale: number }} pose
  */
 export function formatPose(pose) {
   return {
-    shape: SHAPE_LABELS[pose.shape] ?? pose.shape,
+    shape: shapeLabel(pose.shape, pose.modelName),
     color: OBJECT_COLORS[pose.colorIndex]?.label ?? '',
     position: `x ${coord.format(pose.position.x)} · y ${coord.format(pose.position.y)}`,
     rotation: `x ${degrees.format(toDegrees(pose.rotation.x))}° · y ${degrees.format(toDegrees(pose.rotation.y))}°`,

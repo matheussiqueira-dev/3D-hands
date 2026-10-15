@@ -41,6 +41,7 @@ const HINTS = Object.freeze({
 export function cameraView(state, handCount) {
   const loading = state === 'loading';
   const active = state === 'active';
+  /** @type {string} */
   let hint = HINTS.idle;
   if (loading) hint = HINTS.loading;
   if (active) hint = handCount === 0 ? HINTS.noHand : '';

@@ -1,0 +1,24 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "lib": ["ES2022", "DOM"],
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "skipLibCheck": true
+  },
+  "include": [
+    "public/js/config.js",
+    "public/js/format.js",
+    "public/js/utils.js",
+    "public/js/gesture-recognizer.js",
+    "public/js/scene-actions.js",
+    "public/js/camera-state.js"
+  ]
+}

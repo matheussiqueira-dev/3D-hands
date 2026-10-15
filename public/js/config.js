@@ -26,7 +26,17 @@ export const GESTURE_CONFIG = Object.freeze({
  * guide and the README table are checked against this list by the tests.
  * `holdMs` is 0 for continuous gestures.
  */
-export const GESTURE_CATALOG = Object.freeze([
+/**
+ * @typedef {object} GestureCatalogEntry
+ * @property {import('./gesture-recognizer.js').GestureName} id
+ * @property {string} icon Lucide icon name (see icons.js)
+ * @property {string} label PT-BR name shown in the panel
+ * @property {number} holdMs 0 for continuous gestures
+ * @property {string} action PT-BR description of the effect
+ */
+
+/** @type {readonly GestureCatalogEntry[]} */
+export const GESTURE_CATALOG = Object.freeze(/** @type {GestureCatalogEntry[]} */ ([
   { id: 'open_palm',     icon: 'move',       label: 'Mão aberta',        holdMs: 0, action: 'move o objeto na horizontal e na vertical' },
   { id: 'pinch',         icon: 'zoom-in',    label: 'Pinça',             holdMs: 0, action: 'muda a escala: quase fechada reduz, entreaberta amplia' },
   { id: 'two_fingers',   icon: 'rotate-3d',  label: 'Dois dedos juntos', holdMs: 0, action: 'gira o objeto' },
@@ -34,7 +44,7 @@ export const GESTURE_CATALOG = Object.freeze([
   { id: 'v_sign',        icon: 'shapes',     label: 'Sinal de V',        holdMs: GESTURE_CONFIG.V_SIGN_HOLD_MS,       action: 'troca a forma' },
   { id: 'three_fingers', icon: 'palette',    label: 'Três dedos',        holdMs: GESTURE_CONFIG.THREE_FINGER_HOLD_MS, action: 'troca a cor' },
   { id: 'dual_hands',    icon: 'scaling',    label: 'Duas mãos',         holdMs: 0, action: 'muda a escala ao afastar ou aproximar as mãos' },
-].map(Object.freeze));
+].map((entry) => Object.freeze(entry))));
 
 export const SCENE_CONFIG = Object.freeze({
   FOV: 75, NEAR: 0.1, FAR: 1000, CAMERA_Z: 5,
@@ -76,6 +86,7 @@ export const COLOR_TOKENS = Object.freeze({
   LANDMARK_HALO: '--ms-media-halo',
 });
 
+/** @type {readonly { token: string, label: string }[]} */
 export const OBJECT_COLORS = Object.freeze([
   { token: '--ms-chart-1', label: 'Azul' },
   { token: '--ms-chart-2', label: 'Pêssego' },
@@ -83,7 +94,7 @@ export const OBJECT_COLORS = Object.freeze([
   { token: '--ms-chart-4', label: 'Malva' },
   { token: '--ms-chart-5', label: 'Mostarda' },
   { token: '--ms-chart-6', label: 'Jade' },
-].map(Object.freeze));
+].map((entry) => Object.freeze(entry)));
 
 export const UI_CONFIG = Object.freeze({
   FPS_UPDATE_INTERVAL_MS: 500,

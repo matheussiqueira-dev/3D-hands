@@ -6,7 +6,7 @@
  */
 
 import { OBJECT_COLORS } from './config.js';
-import { SHAPE_LABELS } from './format.js';
+import { shapeLabel } from './format.js';
 
 /**
  * @typedef {{ type: 'move', delta: { x: number, y: number }, stopAutoRotate?: boolean }
@@ -58,7 +58,7 @@ export function actionForKey(key) {
 }
 
 /**
- * @param {{ name: string, active: boolean, data: any }} gesture result from GestureRecognizer
+ * @param {import('./gesture-recognizer.js').GestureResult} gesture result from GestureRecognizer
  * @returns {SceneAction | null}
  */
 export function actionForGesture(gesture) {
@@ -71,7 +71,7 @@ export function actionForGesture(gesture) {
     case 'v_sign': return { type: 'nextShape' };
     case 'three_fingers': return { type: 'nextColor' };
     case 'dual_hands':
-      return gesture.data?.scaleDelta ? { type: 'zoom', amount: gesture.data.scaleDelta * DUAL_HAND_ZOOM_GAIN } : null;
+      return gesture.data.scaleDelta ? { type: 'zoom', amount: gesture.data.scaleDelta * DUAL_HAND_ZOOM_GAIN } : null;
     default: return null;
   }
 }
@@ -98,7 +98,7 @@ export function runAction(action, scene) {
       return { detail: 'objeto redefinido', announcement: 'Objeto redefinido.' };
     case 'nextShape': {
       scene.nextShape();
-      const label = SHAPE_LABELS[scene.getPose().shape] ?? scene.getPose().shape;
+      const label = shapeLabel(scene.getPose().shape);
       return { detail: `forma: ${label}`, announcement: `Forma: ${label}.` };
     }
     case 'nextColor': {
