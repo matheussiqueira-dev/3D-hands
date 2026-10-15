@@ -60,3 +60,11 @@ test('the local server answers 404 to a malformed path instead of crashing', asy
   expect((await request.get('/%E0%A4%A')).status()).toBe(404);
   expect((await request.get('/')).status()).toBe(200);
 });
+
+test('the hand model is not downloaded until the camera is started', async ({ page }) => {
+  const mediapipe = [];
+  page.on('request', (req) => { if (req.url().includes('@mediapipe')) mediapipe.push(req.url()); });
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => window.__app);
+  expect(mediapipe).toEqual([]);
+});

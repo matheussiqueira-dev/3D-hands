@@ -5,7 +5,8 @@
  * @module  hand-tracker
  */
 
-import { CAMERA_CONFIG, COLOR_TOKENS, MEDIAPIPE_HANDS_BASE_URL, TRACKING_CONFIG } from './config.js';
+import { CAMERA_CONFIG, COLOR_TOKENS, MEDIAPIPE_HANDS_BASE_URL, MEDIAPIPE_HANDS_SCRIPT, TRACKING_CONFIG } from './config.js';
+import { LandmarkSmoother, withTimeout } from './utils.js';
 
 /**
  * Error with a stable `code` the UI maps to a user-facing message:
@@ -17,6 +18,28 @@ export class CameraError extends Error {
     this.name = 'CameraError';
     this.code = code;
   }
+}
+
+/** @type {Promise<void> | null} shared so the script is requested once per page */
+let handsScriptPromise = null;
+
+/** Injects the pinned hands.js (with SRI) the first time the camera starts. */
+function loadHandsScript() {
+  if (typeof window.Hands !== 'undefined') return Promise.resolve();
+  handsScriptPromise ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = MEDIAPIPE_HANDS_SCRIPT.src;
+    script.integrity = MEDIAPIPE_HANDS_SCRIPT.integrity;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      handsScriptPromise = null; // allow "Tentar novamente" to request it again
+      script.remove();
+      reject(new CameraError('model', 'Failed to load MediaPipe Hands script'));
+    };
+    document.head.append(script);
+  });
+  return handsScriptPromise;
 }
 
 const GET_USER_MEDIA_CODES = Object.freeze({
@@ -42,6 +65,7 @@ export class HandTracker {
     this._running    = false;
     this._initialized = false;
     this._colors      = { mark: '', halo: '' };
+    this._smoother    = new LandmarkSmoother({ alpha: this._trackCfg.SMOOTHING_ALPHA });
   }
 
   onResults(cb) {
@@ -63,6 +87,7 @@ export class HandTracker {
     };
     try {
       await this._startCamera();
+      await loadHandsScript();
       await this._initMediaPipe();
       this._running = true;
       this._scheduleFrame();
@@ -83,6 +108,7 @@ export class HandTracker {
     this._video.srcObject = null;
     if (this._hands)   { try { this._hands.close?.(); } catch {} this._hands = null; }
     this._initialized = false;
+    this._smoother.reset();
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
@@ -91,7 +117,7 @@ export class HandTracker {
   async _initMediaPipe() {
     if (this._initialized) return;
     if (typeof window.Hands === 'undefined')
-      throw new CameraError('model', 'MediaPipe Hands is not loaded. Ensure the CDN script is included.');
+      throw new CameraError('model', 'MediaPipe Hands is not loaded.');
     this._hands = new window.Hands({
       locateFile: file => MEDIAPIPE_HANDS_BASE_URL + file,
     });
@@ -103,9 +129,13 @@ export class HandTracker {
     });
     this._hands.onResults(raw => this._handleRawResults(raw));
     try {
-      await this._hands.initialize();
+      await withTimeout(
+        this._hands.initialize(),
+        this._trackCfg.MODEL_INIT_TIMEOUT_MS,
+        () => new CameraError('model', `MediaPipe Hands did not initialize within ${this._trackCfg.MODEL_INIT_TIMEOUT_MS} ms`),
+      );
     } catch (err) {
-      throw new CameraError('model', 'MediaPipe Hands failed to initialize', { cause: err });
+      throw err instanceof CameraError ? err : new CameraError('model', 'MediaPipe Hands failed to initialize', { cause: err });
     }
     this._initialized = true;
   }
@@ -170,7 +200,8 @@ export class HandTracker {
       this._drawHandOverlay(landmarks);
       hands.push({ landmarks, handedness: handedness?.label ?? 'Unknown', confidence: handedness?.score ?? 0 });
     }
-    const result = { hands, timestamp: performance.now() };
+    // The overlay shows the raw detection; gestures use the smoothed landmarks.
+    const result = { hands: this._smoother.smooth(hands), timestamp: performance.now() };
     this._resultCbs.forEach(cb => { try { cb(result); } catch {} });
   }
 

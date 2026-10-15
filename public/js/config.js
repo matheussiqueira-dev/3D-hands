@@ -50,11 +50,17 @@ export const CAMERA_CONFIG = Object.freeze({
   WIDTH: 1280, HEIGHT: 720, FACING_MODE: 'user', IDEAL_FPS: 30, MAX_FPS: 60,
 });
 
-/** Must match the @mediapipe/hands version loaded by index.html. */
+/** Pinned MediaPipe Hands build; hands.js is loaded on demand (first camera start) with SRI. */
 export const MEDIAPIPE_HANDS_BASE_URL = 'https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1675469240/';
+export const MEDIAPIPE_HANDS_SCRIPT = Object.freeze({
+  src: MEDIAPIPE_HANDS_BASE_URL + 'hands.js',
+  integrity: 'sha384-oHwoZ9HyKv5ark5VOH+XWdbNfmhYtptAOBuV8plz6mAfXvTA6d8fULuYllWouEK2',
+});
 
 export const TRACKING_CONFIG = Object.freeze({
   MAX_HANDS: 2, MODEL_COMPLEXITY: 1,
+  MODEL_INIT_TIMEOUT_MS: 30_000, // slow machines: fail with a message instead of loading forever
+  SMOOTHING_ALPHA: 0.5,          // weight of the newest frame in the landmark moving average
   MIN_DETECTION_CONF: 0.7, MIN_TRACKING_CONF: 0.5,
   LANDMARK_RADIUS: 3, CONNECTION_LINE_WIDTH: 2, HALO_WIDTH: 2,
 });
