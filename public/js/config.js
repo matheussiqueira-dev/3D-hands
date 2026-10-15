@@ -7,7 +7,6 @@
 
 export const GESTURE_CONFIG = Object.freeze({
   PINCH_THRESHOLD:         0.05,
-  PINCH_RELEASE_THRESHOLD: 0.08,
   FINGER_EXTENDED_RATIO:   1.05,
   THUMB_EXTENDED_X_DELTA:  0.04,
   // Index-to-middle tip gap divided by palm length (wrist to middle knuckle):
@@ -16,13 +15,9 @@ export const GESTURE_CONFIG = Object.freeze({
   FIST_HOLD_MS:         2000,
   V_SIGN_HOLD_MS:       1000,
   THREE_FINGER_HOLD_MS:  800,
-  PALM_HOLD_MS:          500,
-  GESTURE_DEBOUNCE_MS:   150,
   MIN_OPEN_FINGERS:    4,
   MIN_THREE_FINGERS:   3,
-  MIN_TWO_FINGERS:     2,
   TRANSLATION_DEADZONE: 0.018,
-  ROTATION_DEADZONE:    0.015,
   SCALE_DEADZONE:       0.008,
 });
 
@@ -86,9 +81,6 @@ export const OBJECT_COLORS = Object.freeze([
 
 export const UI_CONFIG = Object.freeze({
   FPS_UPDATE_INTERVAL_MS: 500,
-  GESTURE_DISPLAY_DURATION_MS: 1500,
   HISTORY_MAX_ENTRIES: 12,
-  TELEMETRY_UPDATE_MS: 100,
   POSE_UPDATE_MS: 500, // pose readout refresh: at most twice per second
-  STATUS_FADE_MS: 300,
 });
