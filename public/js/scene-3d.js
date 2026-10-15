@@ -5,6 +5,7 @@
  * @module  scene-3d
  */
 
+import * as THREE from 'three';
 import { COLOR_TOKENS, OBJECT_COLORS, SCENE_CONFIG } from './config.js';
 
 /** @param {string} name CSS custom property defined in ms-tokens.css */

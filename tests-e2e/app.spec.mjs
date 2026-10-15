@@ -68,3 +68,13 @@ test('the hand model is not downloaded until the camera is started', async ({ pa
   await page.waitForFunction(() => window.__app);
   expect(mediapipe).toEqual([]);
 });
+
+test('the page loads with a clean console (no errors, CSP violations or deprecation warnings)', async ({ page }) => {
+  const messages = [];
+  page.on('console', (msg) => { if (['error', 'warning'].includes(msg.type())) messages.push(`${msg.type()}: ${msg.text()}`); });
+  page.on('pageerror', (err) => messages.push(`pageerror: ${err.message}`));
+  await page.goto('/', { waitUntil: 'networkidle' });
+  await page.waitForFunction(() => window.__app?._scene);
+  // Headless software WebGL logs GPU stall notices that are not page problems.
+  expect(messages.filter((m) => !/GPU stall|GL Driver Message/i.test(m))).toEqual([]);
+});
