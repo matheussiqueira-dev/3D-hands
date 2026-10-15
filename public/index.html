@@ -103,6 +103,7 @@
             <section class="stage" aria-label="Objeto 3D">
                 <canvas id="scene-canvas" role="img" aria-label="Objeto 3D. A forma, a cor, a posição, a rotação e a escala atuais estão no painel Pose."></canvas>
                 <p id="scene-error" class="stage__error" hidden>Este navegador não conseguiu iniciar o WebGL, por isso o objeto 3D não aparece. Os controles continuam descritos ao lado.</p>
+                <p id="drop-hint" class="stage__drop" hidden>Solte o arquivo .glb para carregar</p>
             </section>
 
             <section class="camera" aria-label="Câmera">
@@ -122,6 +123,18 @@
                     <h2 id="gestures-title" class="ms-card__title">Gestos</h2>
                     <p id="hand-hint" class="hint">Os gestos acendem aqui quando a câmera estiver ativa.</p>
                     <ul id="gesture-panel" class="gesture-panel" tabindex="0" aria-label="Gestos suportados"></ul>
+                </section>
+
+                <section class="ms-card" aria-labelledby="model-title">
+                    <h2 id="model-title" class="ms-card__title">Modelo 3D</h2>
+                    <p class="hint">Carregue um arquivo .glb do seu produto, ou arraste-o para a cena, e controle-o com os mesmos gestos. O arquivo é lido no seu navegador e não é enviado a nenhum servidor.</p>
+                    <div class="model-actions">
+                        <button id="model-btn" type="button" class="ms-btn ms-btn--secondary">Carregar modelo (.glb)</button>
+                        <button id="sample-btn" type="button" class="ms-btn ms-btn--secondary">Usar luminária de exemplo</button>
+                    </div>
+                    <input id="model-input" class="ms-sr-only" type="file" accept=".glb,model/gltf-binary" tabindex="-1" aria-hidden="true">
+                    <p id="model-status" class="model-status" role="status"></p>
+                    <p id="model-error" class="model-error" role="alert" hidden></p>
                 </section>
 
                 <section class="ms-card" aria-labelledby="pose-title">

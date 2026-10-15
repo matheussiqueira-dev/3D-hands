@@ -19,6 +19,12 @@ test('the pose readout uses PT-BR numbers, degrees and shape names', () => {
   });
 });
 
+test('a loaded model shows its file name and original colours', () => {
+  const text = formatPose({ shape: 'custom', modelName: 'cadeira.glb', colorIndex: null, position: { x: 0, y: 0 }, rotation: { x: 0, y: 0 }, scale: 1 });
+  assert.equal(text.shape, 'Modelo: cadeira.glb');
+  assert.equal(text.color, 'Originais do modelo');
+});
+
 test('rotation wraps past a full turn and scale keeps one decimal', () => {
   const text = formatPose({ shape: 'cube', colorIndex: 0, position: { x: 0, y: 0 }, rotation: { x: 2 * Math.PI + 0.01, y: 0 }, scale: 1 });
   assert.equal(text.rotation, 'x 1° · y 0°');

@@ -382,6 +382,45 @@ main {
   font-size: var(--ms-text-caption);
 }
 
+.stage__drop {
+  position: absolute;
+  inset: var(--ms-space-3);
+  display: grid;
+  place-items: center;
+  margin: 0;
+  border: 2px dashed var(--ms-accent);
+  border-radius: var(--ms-radius-card);
+  background: color-mix(in srgb, var(--ms-bg) 80%, transparent);
+  color: var(--ms-text);
+  font-weight: var(--ms-weight-semibold);
+  pointer-events: none;
+}
+
+.model-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ms-space-2);
+}
+
+.model-status,
+.model-error {
+  margin: var(--ms-space-3) 0 0;
+  font-size: var(--ms-text-caption);
+  line-height: var(--ms-text-caption--line-height);
+}
+
+.model-status {
+  color: var(--ms-text-secondary);
+}
+
+.model-status:empty {
+  display: none;
+}
+
+.model-error {
+  color: var(--ms-danger);
+}
+
 /* Mobile: the camera is a thumbnail over the scene's top-right corner. */
 .camera {
   grid-area: stage;

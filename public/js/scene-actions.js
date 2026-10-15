@@ -23,8 +23,8 @@ import { shapeLabel } from './format.js';
  * @property {(amount: number) => void} rotate
  * @property {() => void} reset
  * @property {() => void} nextShape
- * @property {() => void} nextColor
- * @property {() => { shape: string, colorIndex: number }} getPose
+ * @property {() => boolean} nextColor false when the shown object keeps its own colours
+ * @property {() => { shape: string, modelName?: string | null, colorIndex: number | null }} getPose
  */
 
 /** @typedef {{ detail?: string, announcement?: string }} ActionOutcome */
@@ -98,12 +98,16 @@ export function runAction(action, scene) {
       return { detail: 'objeto redefinido', announcement: 'Objeto redefinido.' };
     case 'nextShape': {
       scene.nextShape();
-      const label = shapeLabel(scene.getPose().shape);
+      const pose = scene.getPose();
+      const label = shapeLabel(pose.shape, pose.modelName);
       return { detail: `forma: ${label}`, announcement: `Forma: ${label}.` };
     }
     case 'nextColor': {
-      scene.nextColor();
-      const label = OBJECT_COLORS[scene.getPose().colorIndex]?.label ?? '';
+      if (!scene.nextColor()) {
+        return { detail: 'cores originais mantidas', announcement: 'Modelos próprios mantêm as cores originais.' };
+      }
+      const index = scene.getPose().colorIndex;
+      const label = index === null ? '' : OBJECT_COLORS[index]?.label ?? '';
       return { detail: `cor: ${label}`, announcement: `Cor: ${label}.` };
     }
     default: return {};

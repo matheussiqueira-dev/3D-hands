@@ -81,12 +81,12 @@ function toDegrees(rad) {
 
 /**
  * Text version of the scene pose (the canvas's textual alternative).
- * @param {{ shape: string, modelName?: string | null, colorIndex: number, position: {x:number,y:number}, rotation: {x:number,y:number}, scale: number }} pose
+ * @param {{ shape: string, modelName?: string | null, colorIndex: number | null, position: {x:number,y:number}, rotation: {x:number,y:number}, scale: number }} pose
  */
 export function formatPose(pose) {
   return {
     shape: shapeLabel(pose.shape, pose.modelName),
-    color: OBJECT_COLORS[pose.colorIndex]?.label ?? '',
+    color: pose.colorIndex === null ? 'Originais do modelo' : OBJECT_COLORS[pose.colorIndex]?.label ?? '',
     position: `x ${coord.format(pose.position.x)} · y ${coord.format(pose.position.y)}`,
     rotation: `x ${degrees.format(toDegrees(pose.rotation.x))}° · y ${degrees.format(toDegrees(pose.rotation.y))}°`,
     scale: `${factor.format(pose.scale)}×`,

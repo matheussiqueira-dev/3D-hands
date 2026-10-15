@@ -16,7 +16,7 @@ function fakeScene() {
     rotate: (d) => calls.push(['rotate', d]),
     reset: () => calls.push(['reset']),
     nextShape: () => { shape = 'sphere'; calls.push(['nextShape']); },
-    nextColor: () => { colorIndex = 1; calls.push(['nextColor']); },
+    nextColor: () => { colorIndex = 1; calls.push(['nextColor']); return true; },
     getPose: () => ({ shape, colorIndex, modelName: null, position: { x: 0, y: 0, z: 0 }, rotation: { x: 0, y: 0, z: 0 }, scale: 1 }),
   };
 }
@@ -46,6 +46,18 @@ test('discrete actions report a history detail and a screen-reader announcement'
   assert.deepEqual(runAction({ type: 'nextShape' }, scene), { detail: 'forma: Esfera', announcement: 'Forma: Esfera.' });
   assert.deepEqual(runAction({ type: 'nextColor' }, scene), { detail: 'cor: Pêssego', announcement: 'Cor: Pêssego.' });
   assert.deepEqual(runAction({ type: 'reset' }, scene), { detail: 'objeto redefinido', announcement: 'Objeto redefinido.' });
+});
+
+test('a loaded model keeps its colours and says so', () => {
+  const scene = { ...fakeScene(), nextColor: () => false };
+  assert.deepEqual(runAction({ type: 'nextColor' }, scene), {
+    detail: 'cores originais mantidas', announcement: 'Modelos próprios mantêm as cores originais.',
+  });
+});
+
+test('cycling to a loaded model names the file', () => {
+  const scene = { ...fakeScene(), nextShape: () => {}, getPose: () => ({ shape: 'custom', modelName: 'cadeira.glb', colorIndex: null }) };
+  assert.deepEqual(runAction({ type: 'nextShape' }, scene), { detail: 'forma: Modelo: cadeira.glb', announcement: 'Forma: Modelo: cadeira.glb.' });
 });
 
 test('continuous actions change the scene without announcing', () => {

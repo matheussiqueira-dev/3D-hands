@@ -78,3 +78,15 @@ test('the page loads with a clean console (no errors, CSP violations or deprecat
   // Headless software WebGL logs GPU stall notices that are not page problems.
   expect(messages.filter((m) => !/GPU stall|GL Driver Message/i.test(m))).toEqual([]);
 });
+
+test('letter shortcuts work after clicking a button, but Space still activates the focused button', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__app?._scene);
+  await page.getByRole('button', { name: 'Redefinir objeto' }).click();
+  await page.keyboard.press('n');
+  await expect(page.locator('#object-type')).toHaveText('Esfera');
+  await page.keyboard.press('+');
+  await expect(page.locator('#object-scale')).toHaveText('1,05×');
+  await page.keyboard.press(' '); // activates the focused "Redefinir objeto" button
+  await expect(page.locator('#object-scale')).toHaveText('1,0×');
+});
