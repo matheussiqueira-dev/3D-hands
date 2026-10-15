@@ -8,23 +8,11 @@ import { HandTracker } from "./hand-tracker.js";
 import { GestureRecognizer } from "./gesture-recognizer.js";
 import { Scene3D } from "./scene-3d.js";
 import { FPSCounter } from "./utils.js";
-import { GESTURE_CATALOG, OBJECT_COLORS, UI_CONFIG } from "./config.js";
-import { SHAPE_LABELS, cameraErrorMessage, formatHistoryEntry, formatHold, formatPose } from "./format.js";
+import { GESTURE_CATALOG, UI_CONFIG } from "./config.js";
+import { cameraErrorMessage, formatHistoryEntry, formatHold, formatPose } from "./format.js";
 import { createIcon } from "./icons.js";
-
-/** Camera states and their chip text. */
-const CAMERA_LABELS = Object.freeze({
-  off: "Câmera: desligada",
-  loading: "Câmera: iniciando",
-  active: "Câmera: ativa",
-  error: "Câmera: erro",
-});
-
-const HINTS = Object.freeze({
-  off: "Os gestos acendem aqui quando a câmera estiver ativa.",
-  loading: "Carregando modelo de mãos…",
-  noHand: "Mostre a mão para a câmera, com a palma voltada para a tela.",
-});
+import { actionForGesture, actionForKey, runAction } from "./scene-actions.js";
+import { CAMERA_LABELS, cameraView } from "./camera-state.js";
 
 /** Elements whose own keyboard behaviour must not be hijacked. */
 const INTERACTIVE = "button, a, summary, input, select, textarea, .gesture-panel";
@@ -141,89 +129,32 @@ export class App {
     }
 
     if (primary?.active) {
-      const detail = this._applyToScene(primary);
-      this._recordHistory(primary.name, detail);
+      const action = actionForGesture(primary);
+      const outcome = action ? this._perform(action) : {};
+      this._recordHistory(primary.name, outcome.detail);
     }
     this._highlightGesture(primary?.active ? primary.name : holding?.name ?? null);
   }
 
-  /** Applies a gesture and returns a short PT-BR detail for the history, if any. */
-  _applyToScene(gesture) {
-    if (!this._scene) return undefined;
-
-    switch (gesture.name) {
-      case "open_palm":
-        this._scene.translate(gesture.data.delta);
-        this._scene.setAutoRotate(false);
-        break;
-      case "pinch":
-        this._scene.zoom(gesture.data.distance < 0.03 ? -1 : 1);
-        break;
-      case "two_fingers":
-        this._scene.rotate(gesture.data.angle * 0.05);
-        break;
-      case "fist":
-        return this._resetObject();
-      case "v_sign":
-        return this._nextShape();
-      case "three_fingers":
-        return this._nextColor();
-      case "dual_hands":
-        if (gesture.data?.scaleDelta) {
-          this._scene.zoom(gesture.data.scaleDelta * 10);
-        }
-        break;
-    }
-    return undefined;
-  }
-
-  _resetObject() {
-    this._scene?.reset();
-    this._announce("Objeto redefinido.");
-    return "objeto redefinido";
-  }
-
-  _nextShape() {
-    if (!this._scene) return undefined;
-    this._scene.nextShape();
-    const label = SHAPE_LABELS[this._scene.currentShape];
-    this._announce(`Forma: ${label}.`);
-    return `forma: ${label}`;
-  }
-
-  _nextColor() {
-    if (!this._scene) return undefined;
-    this._scene.nextColor();
-    const label = OBJECT_COLORS[this._scene.getPose().colorIndex].label;
-    this._announce(`Cor: ${label}.`);
-    return `cor: ${label}`;
+  /** Runs a scene action and announces discrete changes. */
+  _perform(action) {
+    const outcome = runAction(action, this._scene);
+    if (outcome.announcement) this._announce(outcome.announcement);
+    return outcome;
   }
 
   _bindKeyboard() {
-    const step = 0.05;
-    const handlers = {
-      ArrowUp: () => this._scene?.translate({ x: 0, y: -step }),
-      ArrowDown: () => this._scene?.translate({ x: 0, y: step }),
-      ArrowLeft: () => this._scene?.translate({ x: -step, y: 0 }),
-      ArrowRight: () => this._scene?.translate({ x: step, y: 0 }),
-      r: () => this._resetObject(),
-      n: () => this._nextShape(),
-      c: () => this._nextColor(),
-      "+": () => this._scene?.zoom(1),
-      "=": () => this._scene?.zoom(1),
-      "-": () => this._scene?.zoom(-1),
-      " ": () => this._scene?.setAutoRotate(true),
-      Escape: () => this.stop(),
-    };
-
     document.addEventListener("keydown", (event) => {
       if (event.ctrlKey || event.metaKey || event.altKey) return;
-      const key = event.key.length === 1 ? event.key.toLowerCase() : event.key;
-      const handler = handlers[key];
-      if (!handler) return;
-      if (key !== "Escape" && event.target instanceof Element && event.target.closest(INTERACTIVE)) return;
+      if (event.key === "Escape") {
+        this.stop();
+        return;
+      }
+      const action = actionForKey(event.key);
+      if (!action) return;
+      if (event.target instanceof Element && event.target.closest(INTERACTIVE)) return;
       event.preventDefault();
-      handler();
+      this._perform(action);
     });
   }
 
@@ -231,7 +162,7 @@ export class App {
     this._dom.start?.addEventListener("click", () => this.start());
     this._dom.stop?.addEventListener("click", () => this.stop());
     this._dom.retry?.addEventListener("click", () => this.start());
-    this._dom.reset?.addEventListener("click", () => this._resetObject());
+    this._dom.reset?.addEventListener("click", () => this._perform({ type: "reset" }));
     this._dom.keyboardLink?.addEventListener("click", () => {
       if (this._dom.shortcuts) this._dom.shortcuts.open = true;
     });
@@ -274,28 +205,15 @@ export class App {
     this._setCameraState("off");
   }
 
-  /** @param {"off" | "loading" | "active" | "error"} state */
+  /** @param {import("./camera-state.js").CameraState} state */
   _setCameraState(state) {
     const changed = state !== this._cameraState;
     this._cameraState = state;
-    const { camera, start, startLabel, stop, placeholder } = this._dom;
-
-    if (camera) camera.textContent = CAMERA_LABELS[state];
-    if (start) {
-      start.hidden = state === "active";
-      start.setAttribute("aria-busy", String(state === "loading"));
-      if (startLabel) startLabel.textContent = state === "loading" ? "Carregando modelo de mãos…" : "Ativar câmera";
-    }
-    if (stop) stop.hidden = state !== "active";
-    if (placeholder) {
-      placeholder.hidden = state === "active";
-      placeholder.textContent = state === "loading" ? "Iniciando câmera…" : "Câmera desligada";
-    }
+    const { start, stop } = this._dom;
+    this._renderCameraView();
     // Keep keyboard focus on a visible control when the buttons swap.
     if (state === "active" && document.activeElement === start) stop?.focus();
     if (state === "off" && document.activeElement === stop) start?.focus();
-
-    this._updateHint();
     if (changed && state !== "error") this._announce(`${CAMERA_LABELS[state]}.`);
   }
 
@@ -303,17 +221,27 @@ export class App {
     if (count === this._handCount) return;
     this._handCount = count;
     if (this._dom.hands) this._dom.hands.textContent = `Mãos: ${count}`;
-    this._updateHint();
+    this._renderCameraView();
   }
 
-  _updateHint() {
-    const hint = this._dom.hint;
-    if (!hint) return;
-    let text = HINTS.off;
-    if (this._cameraState === "loading") text = HINTS.loading;
-    if (this._cameraState === "active") text = this._handCount === 0 ? HINTS.noHand : "";
-    hint.textContent = text;
-    hint.hidden = text === "";
+  _renderCameraView() {
+    const view = cameraView(this._cameraState, this._handCount);
+    const { camera, start, startLabel, stop, placeholder, hint } = this._dom;
+    if (camera) camera.textContent = view.chip;
+    if (start) {
+      start.hidden = view.startHidden;
+      start.setAttribute("aria-busy", String(view.startBusy));
+    }
+    if (startLabel) startLabel.textContent = view.startLabel;
+    if (stop) stop.hidden = view.stopHidden;
+    if (placeholder) {
+      placeholder.hidden = view.placeholderHidden;
+      placeholder.textContent = view.placeholderText;
+    }
+    if (hint) {
+      hint.textContent = view.hint;
+      hint.hidden = view.hint === "";
+    }
   }
 
   /** @param {{ code?: string } | undefined} error */
