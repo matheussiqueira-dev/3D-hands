@@ -13,10 +13,32 @@ O repositório tem duas partes:
 
 | Parte | Stack | Onde |
 |---|---|---|
-| Web (principal) | HTML e JavaScript (ES modules) sem build, Three.js 0.160.0 e MediaPipe Hands 0.4.1675469240 por CDN com SRI | `public/` |
+| Web (principal) | HTML e JavaScript (ES modules) sem build, tipado com JSDoc e conferido pelo `tsc` em modo estrito; Three.js 0.160.0 por import map e MediaPipe Hands 0.4.1675469240 sob demanda, ambos por CDN com SRI | `public/` |
 | Desktop (referência) | Python, OpenCV, MediaPipe Tasks, pygame-ce e PyOpenGL, com classificador de gestos treinável (scikit-learn) | `app/`, `core/`, `gestures/`, `interaction/`, `ui/`, `utils/`, `vision/` |
 
-Na versão web, o MediaPipe encontra até duas mãos no vídeo da webcam, um reconhecedor por regras (`public/js/gesture-recognizer.js`) transforma os 21 pontos de cada mão em gestos, e a cena Three.js aplica a ação. O painel de gestos mostra qual gesto foi reconhecido e, nos gestos com retenção, uma barra com o tempo que falta.
+Na versão web, o MediaPipe encontra até duas mãos no vídeo da webcam, os pontos passam por uma média móvel que reduz o tremido, um reconhecedor por regras (`public/js/gesture-recognizer.js`) transforma os 21 pontos de cada mão em gestos, e a cena Three.js aplica a ação. O painel de gestos mostra qual gesto foi reconhecido e, nos gestos com retenção, uma barra com o tempo que falta.
+
+## Modelo 3D próprio
+
+Além das formas de exemplo, a cena aceita um arquivo `.glb` (glTF binário 2.0): pelo botão "Carregar modelo (.glb)", arrastando o arquivo para a cena ou com a luminária de exemplo (`public/models/luminaria.glb`, gerada por `node scripts/generate_sample_model.mjs`). O modelo é centralizado e redimensionado para caber na cena e responde aos mesmos gestos e atalhos; o sinal de V e a tecla `N` alternam entre ele e as formas. Modelos próprios mantêm as cores originais.
+
+O arquivo é validado antes de ir para o parser (extensão, até 25 MB, cabeçalho `glTF` versão 2 e tamanho declarado) e lido no navegador; nada é enviado a servidor. O `GLTFLoader` só é baixado quando um modelo é carregado.
+
+## Arquitetura da versão web
+
+| Módulo | Papel | Testado em |
+|---|---|---|
+| `gesture-recognizer.js` | landmarks → gestos (regras, retenção que dispara uma vez) | `node --test` |
+| `scene-actions.js` | um vocabulário de ações para gestos, teclado e botões | `node --test` |
+| `camera-state.js` | máquina de estados da câmera → o que a interface mostra | `node --test` |
+| `model-file.js` | validação de arquivos `.glb` | `node --test` |
+| `utils.js` | FPS medido, suavização de landmarks, tempo limite | `node --test` |
+| `format.js`, `config.js` | textos PT-BR e catálogo de gestos (fonte única do painel e do README) | `node --test` |
+| `hand-tracker.js` | câmera e MediaPipe (carregado sob demanda, com tempo limite de 30 s) | Playwright |
+| `scene-3d.js` | cena Three.js, formas e modelo próprio | Playwright |
+| `app.js` | liga os módulos ao DOM | Playwright |
+
+As decisões estruturais estão em [`docs/adr/`](docs/adr) e o roteiro de evolução em [`docs/EVOLUCAO.md`](docs/EVOLUCAO.md).
 
 ## Privacidade
 
@@ -59,6 +81,7 @@ Funciona sem câmera.
 - Gestos com retenção exigem a mão parada durante todo o tempo indicado.
 - Os limiares do reconhecedor foram ajustados com landmarks sintéticos nos testes; com mãos e câmeras reais, podem precisar de calibração.
 - A câmera exige HTTPS (ou `localhost`) e um navegador com WebGL e `getUserMedia`.
+- Modelos `.glb` com compressão Draco ou texturas KTX2 ainda não são suportados (o parser recusa e a interface avisa).
 
 ## Rodar a versão web
 
@@ -73,9 +96,11 @@ npm run serve    # http://127.0.0.1:3000 com os mesmos headers do vercel.json
 Testes:
 
 ```bash
-npm test             # testes unitários (node --test) do reconhecedor, formatação, catálogo e metadados
+npm test             # testes unitários (node --test): reconhecedor, ações, estados da câmera, validação de .glb, metadados
+npm run test:coverage  # o mesmo, exigindo 80% de linhas nos módulos de lógica
+npm run typecheck    # tsc --checkJs em modo estrito nos módulos de lógica
 npm run check        # sintaxe de todos os módulos
-npm run test:e2e     # Playwright: teclado, câmera falsa, câmera negada, overflow e axe
+npm run test:e2e     # Playwright: teclado, câmera falsa sob a CSP, erros de câmera e de modelo, .glb, overflow e axe
 ```
 
 No Windows, o Playwright usa o Microsoft Edge instalado (`channel: "msedge"`); no CI, o Chromium do Playwright.
@@ -113,9 +138,11 @@ public/            site estático servido pela Vercel
   index.html       página única
   ms-tokens.css    design system compartilhado (v1.0, conferido por hash)
   css/style.css    estilos do app, só com tokens
-  js/              app, reconhecedor, cena 3D, rastreador de mãos, formatação PT-BR
+  js/              módulos da aplicação (tabela acima)
+  models/          luminária de exemplo (.glb)
   fonts/           IBM Plex Sans variável (OFL-1.1)
-scripts/           servidor local, checagem de sintaxe, version.json e geração do favicon e da imagem OG
+scripts/           servidor local, checagem de sintaxe, version.json, favicon, imagem OG e modelo de exemplo
+docs/              ADRs e roteiro de evolução
 tests-web/         testes unitários (node --test)
 tests-e2e/         testes Playwright
 app/ core/ gestures/ interaction/ ui/ utils/ vision/   app desktop em Python
@@ -124,7 +151,7 @@ tests/             testes pytest do app desktop
 
 ## Deploy
 
-O projeto Vercel `3-d-hands` publica `public/` (`outputDirectory` no `vercel.json`) e roda `npm run build` para gerar o `version.json`. Não há funções serverless nem variáveis de ambiente obrigatórias. O `vercel.json` define CSP, `Permissions-Policy: camera=(self)`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` e cache imutável para `/fonts/`.
+O projeto Vercel `3-d-hands` publica `public/` (`outputDirectory` no `vercel.json`) e roda `npm run build` para gerar o `version.json`. Não há funções serverless nem variáveis de ambiente obrigatórias. O `vercel.json` define CSP (o import map inline entra por hash, sem `unsafe-inline`), `Permissions-Policy: camera=(self)`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` e cache imutável para `/fonts/`.
 
 O favicon e a imagem OG são gerados por `python scripts/generate_brand_assets.py` (dependências em `requirements-dev.txt`).
 
