@@ -2,6 +2,27 @@
 
 Todas as mudanças relevantes deste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), com versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [1.2.0] - 2026-10-15
+
+### Adicionado
+- Visualizador de produto: carregue um modelo `.glb` próprio (botão, arrastar e soltar na cena ou a luminária de exemplo) e controle-o com os mesmos gestos e atalhos. O arquivo é validado (extensão, até 25 MB, cabeçalho glTF 2.0) e lido só no navegador.
+- Luminária de exemplo original (`public/models/luminaria.glb`), gerada por `scripts/generate_sample_model.mjs`.
+- Suavização dos landmarks por média móvel, com identidade por mão.
+- Tempo limite de 30 s na inicialização do modelo de mãos, com mensagem e "Tentar novamente".
+- Verificação de tipos com JSDoc e `tsc --checkJs` em modo estrito no CI (`npm run typecheck`).
+- ADRs em `docs/adr/` e o roteiro de evolução em `docs/EVOLUCAO.md`.
+
+### Alterado
+- Three.js carregado como ES module minificado por import map com SRI; o import map entra na CSP por hash, sem `unsafe-inline`.
+- MediaPipe Hands baixado só depois de "Ativar câmera".
+- Lógica do `app.js` separada em `scene-actions.js`, `camera-state.js` e `model-panel.js`.
+- Atalhos de letra (N, C, R, +/−) funcionam mesmo com um botão em foco; Espaço, Enter e setas continuam com o controle focado.
+- Luz de preenchimento na cena, para modelos escuros ou metálicos.
+
+### Removido
+- Funções e chaves de configuração sem uso (`lerp`, `Smoother`, `debounce`, `throttle`, `PALM_HOLD_MS` e outras).
+- Script UMD `three.min.js`, obsoleto desde o r150.
+
 ## [1.1.0] - 2026-10-11
 
 ### Adicionado
@@ -38,5 +59,6 @@ Todas as mudanças relevantes deste projeto. Formato baseado em [Keep a Changelo
 
 - Versão inicial publicada: cena Three.js controlada por gestos no navegador e app desktop em Python.
 
+[1.2.0]: https://github.com/matheussiqueira-dev/3D-hands/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/matheussiqueira-dev/3D-hands/compare/f481529...v1.1.0
 [1.0.0]: https://github.com/matheussiqueira-dev/3D-hands/tree/f481529
