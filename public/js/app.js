@@ -13,9 +13,7 @@ import { cameraErrorMessage, formatHistoryEntry, formatHold, formatPose } from "
 import { createIcon } from "./icons.js";
 import { actionForGesture, actionForKey, runAction } from "./scene-actions.js";
 import { CAMERA_LABELS, cameraView } from "./camera-state.js";
-import { MODEL_FILE_MESSAGES, checkModelFile, modelDisplayName } from "./model-file.js";
-
-const SAMPLE_MODEL = Object.freeze({ url: "/models/luminaria.glb", name: "luminaria.glb" });
+import { ModelPanel } from "./model-panel.js";
 
 /** Text fields own every key. */
 const TEXT_FIELDS = "input, select, textarea";
@@ -36,7 +34,6 @@ export class App {
     this._rows = new Map();
     this._scene = null;
     this._tracker = null;
-    this._loadingModel = false;
   }
 
   async init() {
@@ -76,7 +73,7 @@ export class App {
       panel: "gesture-panel", alert: "camera-alert", alertMessage: "camera-alert-message", retry: "retry-btn",
       poseShape: "object-type", poseColor: "object-color", posePosition: "object-position",
       poseRotation: "object-rotation", poseScale: "object-scale", announcer: "announcer",
-      footerMeta: "footer-meta", stage: "scene-canvas", dropHint: "drop-hint", modelBtn: "model-btn",
+      footerMeta: "footer-meta", dropHint: "drop-hint", modelBtn: "model-btn",
       sampleBtn: "sample-btn", modelInput: "model-input", modelStatus: "model-status", modelError: "model-error",
     };
     for (const [key, id] of Object.entries(ids)) {
@@ -176,90 +173,11 @@ export class App {
     this._dom.keyboardLink?.addEventListener("click", () => {
       if (this._dom.shortcuts) this._dom.shortcuts.open = true;
     });
-    this._bindModelLoading();
-  }
-
-  _bindModelLoading() {
-    const { modelBtn, sampleBtn, modelInput } = this._dom;
-    if (!this._scene) {
-      for (const button of [modelBtn, sampleBtn]) if (button) button.disabled = true;
-      this._setModelMessage("", "Sem WebGL não é possível exibir modelos 3D neste navegador.");
-      return;
-    }
-    modelBtn?.addEventListener("click", () => modelInput?.click());
-    modelInput?.addEventListener("change", () => {
-      const file = modelInput.files?.[0];
-      modelInput.value = ""; // choosing the same file again still fires "change"
-      if (file) this._loadModel(file);
-    });
-    sampleBtn?.addEventListener("click", () => this._loadSampleModel());
-
-    const stage = this._dom.stage?.parentElement;
-    if (!stage) return;
-    let depth = 0; // dragenter/dragleave also fire for child elements
-    const showDrop = (on) => { if (this._dom.dropHint) this._dom.dropHint.hidden = !on; };
-    stage.addEventListener("dragenter", (event) => { event.preventDefault(); depth += 1; showDrop(true); });
-    stage.addEventListener("dragover", (event) => event.preventDefault());
-    stage.addEventListener("dragleave", () => { depth = Math.max(0, depth - 1); if (depth === 0) showDrop(false); });
-    stage.addEventListener("drop", (event) => {
-      event.preventDefault();
-      depth = 0;
-      showDrop(false);
-      const file = event.dataTransfer?.files?.[0];
-      if (file) this._loadModel(file);
-    });
-  }
-
-  async _loadSampleModel() {
-    try {
-      const response = await fetch(SAMPLE_MODEL.url);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const blob = await response.blob();
-      await this._loadModel(new File([blob], SAMPLE_MODEL.name, { type: "model/gltf-binary" }));
-    } catch (error) {
-      console.warn("[App] sample model:", error?.message);
-      this._setModelMessage("", "Não foi possível baixar o modelo de exemplo. Verifique a conexão e tente de novo.");
-    }
-  }
-
-  /** Validates, parses and shows a user-supplied .glb. @param {File} file */
-  async _loadModel(file) {
-    if (this._loadingModel || !this._scene) return;
-    const header = await file.slice(0, 12).arrayBuffer();
-    const check = checkModelFile(file, header);
-    if (!check.ok) {
-      this._setModelMessage("", MODEL_FILE_MESSAGES[check.problem]);
-      return;
-    }
-    const name = modelDisplayName(file.name);
-    this._loadingModel = true;
-    this._setModelBusy(true);
-    this._setModelMessage(`Carregando ${name}…`, "");
-    try {
-      await this._scene.loadModel(await file.arrayBuffer(), name);
-      this._setModelMessage(`Modelo carregado: ${name}. Use o sinal de V ou a tecla N para alternar entre ele e as formas.`, "");
-      this._renderPose();
-    } catch (error) {
-      console.warn("[App] model:", error?.message);
-      this._setModelMessage("", "Não foi possível ler este modelo. Confira se o arquivo .glb não está corrompido.");
-    } finally {
-      this._loadingModel = false;
-      this._setModelBusy(false);
-    }
-  }
-
-  /** @param {boolean} busy */
-  _setModelBusy(busy) {
-    for (const button of [this._dom.modelBtn, this._dom.sampleBtn]) button?.setAttribute("aria-busy", String(busy));
-  }
-
-  /** Shows either a status (polite) or an error (alert); the other is cleared. */
-  _setModelMessage(status, error) {
-    if (this._dom.modelStatus) this._dom.modelStatus.textContent = status;
-    if (this._dom.modelError) {
-      this._dom.modelError.textContent = error;
-      this._dom.modelError.hidden = error === "";
-    }
+    new ModelPanel({
+      modelBtn: this._dom.modelBtn, sampleBtn: this._dom.sampleBtn, modelInput: this._dom.modelInput,
+      modelStatus: this._dom.modelStatus, modelError: this._dom.modelError,
+      dropZone: this._dom.scene?.parentElement ?? null, dropHint: this._dom.dropHint,
+    }, this._scene, () => this._renderPose()).bind();
   }
 
   async start() {
