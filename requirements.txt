@@ -7,14 +7,14 @@ opencv-contrib-python==4.13.0.92
 mediapipe==0.10.35
 
 # Numerical computing
-numpy==2.4.4
+numpy==2.5.4
 
 # Machine learning
-scikit-learn==1.8.0
-joblib==1.5.3
-pandas==3.0.2
+scikit-learn==1.9.1
+joblib==1.6.0
+pandas==3.0.6
 
 # Rendering & UI
-pygame-ce==2.5.7
+pygame-ce==2.5.8
 PyOpenGL==3.1.10
 PyOpenGL-accelerate==3.1.10

@@ -2,6 +2,12 @@
 
 Todas as mudanças relevantes deste projeto. Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), com versionamento [SemVer](https://semver.org/lang/pt-BR/).
 
+## [Não lançado]
+
+### Alterado
+- Dependências de desenvolvimento: `@playwright/test` 1.64.1 e `@axe-core/playwright` 4.14.0.
+- App desktop: `numpy` 2.5.4, `scikit-learn` 1.9.1, `joblib` 1.6.0, `pandas` 3.0.6, `pygame-ce` 2.5.8 e `fonttools` 4.67.0. Versões maiores (`mediapipe` 1.x, `opencv-contrib-python` 5.x) ficam para uma mudança própria.
+
 ## [1.2.0] - 2026-10-15
 
 ### Adicionado
