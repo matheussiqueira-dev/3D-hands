@@ -1,11 +1,52 @@
 /**
  * Browser Hand Tracking — MediaPipe Hands Wrapper
  * Manages camera stream, MediaPipe model lifecycle, and landmark extraction.
- * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  hand-tracker
  */
 
-import { CAMERA_CONFIG, TRACKING_CONFIG } from './config.js';
+import { CAMERA_CONFIG, COLOR_TOKENS, MEDIAPIPE_HANDS_BASE_URL, MEDIAPIPE_HANDS_SCRIPT, TRACKING_CONFIG } from './config.js';
+import { LandmarkSmoother, withTimeout } from './utils.js';
+
+/**
+ * Error with a stable `code` the UI maps to a user-facing message:
+ * 'denied' | 'not-found' | 'in-use' | 'unsupported' | 'model' | 'unknown'.
+ */
+export class CameraError extends Error {
+  constructor(code, message, options) {
+    super(message, options);
+    this.name = 'CameraError';
+    this.code = code;
+  }
+}
+
+/** @type {Promise<void> | null} shared so the script is requested once per page */
+let handsScriptPromise = null;
+
+/** Injects the pinned hands.js (with SRI) the first time the camera starts. */
+function loadHandsScript() {
+  if (typeof window.Hands !== 'undefined') return Promise.resolve();
+  handsScriptPromise ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = MEDIAPIPE_HANDS_SCRIPT.src;
+    script.integrity = MEDIAPIPE_HANDS_SCRIPT.integrity;
+    script.crossOrigin = 'anonymous';
+    script.onload = () => resolve();
+    script.onerror = () => {
+      handsScriptPromise = null; // allow "Tentar novamente" to request it again
+      script.remove();
+      reject(new CameraError('model', 'Failed to load MediaPipe Hands script'));
+    };
+    document.head.append(script);
+  });
+  return handsScriptPromise;
+}
+
+const GET_USER_MEDIA_CODES = Object.freeze({
+  NotAllowedError: 'denied', SecurityError: 'denied',
+  NotFoundError: 'not-found', DevicesNotFoundError: 'not-found',
+  NotReadableError: 'in-use', TrackStartError: 'in-use',
+});
 
 export class HandTracker {
   constructor(videoEl, overlayEl, camCfg = {}, trackCfg = {}) {
@@ -23,6 +64,8 @@ export class HandTracker {
     this._rafHandle  = null;
     this._running    = false;
     this._initialized = false;
+    this._colors      = { mark: '', halo: '' };
+    this._smoother    = new LandmarkSmoother({ alpha: this._trackCfg.SMOOTHING_ALPHA });
   }
 
   onResults(cb) {
@@ -37,13 +80,21 @@ export class HandTracker {
 
   async start() {
     if (this._running) return;
+    const css = getComputedStyle(document.documentElement);
+    this._colors = {
+      mark: css.getPropertyValue(COLOR_TOKENS.LANDMARK).trim(),
+      halo: css.getPropertyValue(COLOR_TOKENS.LANDMARK_HALO).trim(),
+    };
     try {
       await this._startCamera();
+      await loadHandsScript();
       await this._initMediaPipe();
       this._running = true;
       this._scheduleFrame();
     } catch (err) {
-      const error = err instanceof Error ? err : new Error(String(err));
+      const error = err instanceof CameraError
+        ? err
+        : new CameraError('unknown', err instanceof Error ? err.message : String(err), { cause: err });
       this.stop();
       this._emitError(error);
       throw error;
@@ -57,6 +108,7 @@ export class HandTracker {
     this._video.srcObject = null;
     if (this._hands)   { try { this._hands.close?.(); } catch {} this._hands = null; }
     this._initialized = false;
+    this._smoother.reset();
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
@@ -65,9 +117,9 @@ export class HandTracker {
   async _initMediaPipe() {
     if (this._initialized) return;
     if (typeof window.Hands === 'undefined')
-      throw new Error('MediaPipe Hands is not loaded. Ensure the CDN script is included.');
+      throw new CameraError('model', 'MediaPipe Hands is not loaded.');
     this._hands = new window.Hands({
-      locateFile: file => 'https://cdn.jsdelivr.net/npm/@mediapipe/hands/' + file,
+      locateFile: file => MEDIAPIPE_HANDS_BASE_URL + file,
     });
     this._hands.setOptions({
       maxNumHands:            this._trackCfg.MAX_HANDS,
@@ -76,13 +128,21 @@ export class HandTracker {
       minTrackingConfidence:  this._trackCfg.MIN_TRACKING_CONF,
     });
     this._hands.onResults(raw => this._handleRawResults(raw));
-    await this._hands.initialize();
+    try {
+      await withTimeout(
+        this._hands.initialize(),
+        this._trackCfg.MODEL_INIT_TIMEOUT_MS,
+        () => new CameraError('model', `MediaPipe Hands did not initialize within ${this._trackCfg.MODEL_INIT_TIMEOUT_MS} ms`),
+      );
+    } catch (err) {
+      throw err instanceof CameraError ? err : new CameraError('model', 'MediaPipe Hands failed to initialize', { cause: err });
+    }
     this._initialized = true;
   }
 
   async _startCamera() {
     if (!navigator.mediaDevices?.getUserMedia)
-      throw new Error('Camera API (getUserMedia) is not available in this browser or context.');
+      throw new CameraError('unsupported', 'Camera API (getUserMedia) is not available in this browser or context.');
     const constraints = {
       video: {
         facingMode: this._camCfg.FACING_MODE,
@@ -97,12 +157,7 @@ export class HandTracker {
       if (err?.name === 'OverconstrainedError' || err?.name === 'ConstraintNotSatisfiedError') {
         this._stream = await navigator.mediaDevices.getUserMedia({ video: true });
       } else {
-        let error;
-        if (err.name === 'NotAllowedError') error = new Error('Camera access was denied by the user.');
-        else if (err.name === 'NotFoundError') error = new Error('No camera device found.');
-        else if (err.name === 'NotReadableError') error = new Error('Camera is already in use by another application.');
-        else error = err instanceof Error ? err : new Error(String(err));
-        throw error;
+        throw new CameraError(GET_USER_MEDIA_CODES[err?.name] ?? 'unknown', `getUserMedia failed: ${err?.name ?? err}`, { cause: err });
       }
     }
     this._video.muted = true;
@@ -145,16 +200,19 @@ export class HandTracker {
       this._drawHandOverlay(landmarks);
       hands.push({ landmarks, handedness: handedness?.label ?? 'Unknown', confidence: handedness?.score ?? 0 });
     }
-    const result = { hands, timestamp: performance.now() };
+    // The overlay shows the raw detection; gestures use the smoothed landmarks.
+    const result = { hands: this._smoother.smooth(hands), timestamp: performance.now() };
     this._resultCbs.forEach(cb => { try { cb(result); } catch {} });
   }
 
+  /** Light marks over a dark halo so the skeleton reads on any camera frame. */
   _drawHandOverlay(landmarks) {
     const W = this._canvas.width, H = this._canvas.height;
-    if (window.HAND_CONNECTIONS) {
-      this._ctx.strokeStyle = this._trackCfg.CONNECTION_COLOR;
-      this._ctx.lineWidth   = this._trackCfg.CONNECTION_LINE_WIDTH;
-      for (const [a, b] of window.HAND_CONNECTIONS) {
+    const { LANDMARK_RADIUS: r, CONNECTION_LINE_WIDTH: line, HALO_WIDTH: halo } = this._trackCfg;
+    const strokeConnections = (color, width) => {
+      this._ctx.strokeStyle = color;
+      this._ctx.lineWidth = width;
+      for (const [a, b] of window.HAND_CONNECTIONS ?? []) {
         const pa = landmarks[a], pb = landmarks[b];
         if (!pa || !pb) continue;
         this._ctx.beginPath();
@@ -162,13 +220,19 @@ export class HandTracker {
         this._ctx.lineTo(pb.x * W, pb.y * H);
         this._ctx.stroke();
       }
-    }
-    this._ctx.fillStyle = this._trackCfg.LANDMARK_COLOR;
-    for (const lm of landmarks) {
-      this._ctx.beginPath();
-      this._ctx.arc(lm.x * W, lm.y * H, this._trackCfg.LANDMARK_RADIUS, 0, Math.PI * 2);
-      this._ctx.fill();
-    }
+    };
+    const fillPoints = (color, radius) => {
+      this._ctx.fillStyle = color;
+      for (const lm of landmarks) {
+        this._ctx.beginPath();
+        this._ctx.arc(lm.x * W, lm.y * H, radius, 0, Math.PI * 2);
+        this._ctx.fill();
+      }
+    };
+    strokeConnections(this._colors.halo, line + halo * 2);
+    fillPoints(this._colors.halo, r + halo);
+    strokeConnections(this._colors.mark, line);
+    fillPoints(this._colors.mark, r);
   }
 
   _emitError(err) {

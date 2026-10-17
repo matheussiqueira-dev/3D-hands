@@ -15,7 +15,6 @@ node_modules/
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
-package-lock.json
 yarn.lock
 
 # Vercel
@@ -38,3 +37,11 @@ Thumbs.db
 *.tmp
 *.temp
 .cache/
+
+# Test output
+test-results/
+playwright-report/
+.pytest_cache/
+
+# Generated at build time
+public/version.json

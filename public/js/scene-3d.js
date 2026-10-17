@@ -1,11 +1,33 @@
 /**
  * Three.js 3D Scene Manager
  * Manages WebGL scene, object lifecycle, and gesture-driven transforms.
- * @author  Matheus Siqueira <https://www.matheussiqueira.dev/>
+ * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  scene-3d
  */
 
-import { SCENE_CONFIG, COLOR_PALETTE } from './config.js';
+import * as THREE from 'three';
+import { COLOR_TOKENS, OBJECT_COLORS, SCENE_CONFIG } from './config.js';
+
+/** @param {string} name CSS custom property defined in ms-tokens.css */
+function readToken(name) {
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
+
+/** Frees GPU memory held by every mesh, material and texture under `root`. */
+function disposeObject(root) {
+  root.traverse((node) => {
+    if (!node.isMesh) return;
+    node.geometry?.dispose();
+    const materials = Array.isArray(node.material) ? node.material : [node.material];
+    for (const material of materials) {
+      if (!material) continue;
+      for (const value of Object.values(material)) {
+        if (value?.isTexture) value.dispose();
+      }
+      material.dispose();
+    }
+  });
+}
 
 const SHAPE_REGISTRY = [
   { name: 'cube',         factory: () => new THREE.BoxGeometry(1.5, 1.5, 1.5) },
@@ -13,11 +35,6 @@ const SHAPE_REGISTRY = [
   { name: 'cone',         factory: () => new THREE.ConeGeometry(0.9, 1.8, 32) },
   { name: 'torus',        factory: () => new THREE.TorusGeometry(0.7, 0.3, 16, 100) },
   { name: 'dodecahedron', factory: () => new THREE.DodecahedronGeometry(0.9) },
-];
-
-const COLOR_CYCLE = [
-  COLOR_PALETTE.CYAN, COLOR_PALETTE.ORANGE, COLOR_PALETTE.GREEN,
-  COLOR_PALETTE.PURPLE, COLOR_PALETTE.BLUE,
 ];
 
 export class Scene3D {
@@ -32,10 +49,14 @@ export class Scene3D {
     this._position = { x: 0, y: 0, z: 0 };
     this._rotation = { x: 0, y: 0, z: 0 };
     this._scale    = 1.0;
+    this._colors   = [];
+    this._customModel = null; // THREE.Group wrapping a loaded glTF, kept while cycling shapes
+    this._modelName   = null;
   }
 
   init() {
     if (!this._isWebGLSupported()) throw new Error('WebGL is not supported in this browser or context.');
+    this._colors = OBJECT_COLORS.map(({ token }) => new THREE.Color(readToken(token)));
     this._initRenderer();
     this._initScene();
     this._initCamera();
@@ -51,8 +72,8 @@ export class Scene3D {
 
   dispose() {
     if (this._rafHandle !== null) { cancelAnimationFrame(this._rafHandle); this._rafHandle = null; }
-    this._mesh?.geometry.dispose();
-    this._mesh?.material.dispose();
+    if (this._mesh && this._mesh !== this._customModel) disposeObject(this._mesh);
+    if (this._customModel) disposeObject(this._customModel);
     this._renderer?.dispose();
   }
 
@@ -80,34 +101,91 @@ export class Scene3D {
     this._autoRotate = true;
   }
 
+  /** Cycles the built-in shapes, plus the loaded model when there is one. */
   nextShape() {
-    this._shapeIndex = (this._shapeIndex + 1) % SHAPE_REGISTRY.length;
+    const slots = SHAPE_REGISTRY.length + (this._customModel ? 1 : 0);
+    this._shapeIndex = (this._shapeIndex + 1) % slots;
     this._spawnMesh();
   }
 
+  /** @returns {boolean} false when a loaded model is shown (it keeps its own materials) */
   nextColor() {
-    this._colorIndex = (this._colorIndex + 1) % COLOR_CYCLE.length;
+    if (this._showingCustom()) return false;
+    this._colorIndex = (this._colorIndex + 1) % OBJECT_COLORS.length;
     if (this._mesh?.material) {
-      this._mesh.material.color.setHex(COLOR_CYCLE[this._colorIndex]);
-      this._mesh.material.emissive.setHex(COLOR_CYCLE[this._colorIndex]);
+      this._mesh.material.color.copy(this._colors[this._colorIndex]);
+      this._mesh.material.emissive.copy(this._colors[this._colorIndex]);
     }
+    return true;
+  }
+
+  /**
+   * Parses a validated .glb in the browser, centres it, scales it to fit the
+   * stage and shows it. The previous loaded model, if any, is disposed.
+   * @param {ArrayBuffer} buffer
+   * @param {string} name display name
+   */
+  async loadModel(buffer, name) {
+    const { GLTFLoader } = await import('three/addons/loaders/GLTFLoader.js');
+    const gltf = await new GLTFLoader().parseAsync(buffer, '');
+    const content = gltf.scene;
+    const box = new THREE.Box3().setFromObject(content);
+    const size = box.getSize(new THREE.Vector3());
+    const maxDim = Math.max(size.x, size.y, size.z);
+    if (!Number.isFinite(maxDim) || maxDim <= 0) {
+      disposeObject(content);
+      throw new Error('The model has no visible geometry.');
+    }
+    content.position.sub(box.getCenter(new THREE.Vector3()));
+    const fit = new THREE.Group();
+    fit.scale.setScalar(this._cfg.MODEL_FIT_SIZE / maxDim);
+    fit.add(content);
+    const pivot = new THREE.Group();
+    pivot.add(fit);
+
+    const previous = this._customModel;
+    this._customModel = pivot;
+    this._modelName = name;
+    this._shapeIndex = SHAPE_REGISTRY.length;
+    this._spawnMesh();
+    if (previous) disposeObject(previous);
+    this.reset();
   }
 
   setAutoRotate(value) { this._autoRotate = Boolean(value); }
-  get currentShape()   { return SHAPE_REGISTRY[this._shapeIndex].name; }
+  get currentShape()   { return this._showingCustom() ? 'custom' : SHAPE_REGISTRY[this._shapeIndex].name; }
   get currentScale()   { return this._scale; }
+
+  /** Snapshot of the transform shown to the user (rotation in radians). */
+  getPose() {
+    const custom = this._showingCustom();
+    return {
+      shape: this.currentShape,
+      modelName: custom ? this._modelName : null,
+      colorIndex: custom ? null : this._colorIndex,
+      position: { ...this._position },
+      rotation: { ...this._rotation },
+      scale: this._scale,
+    };
+  }
+
+  _showingCustom() {
+    return this._customModel !== null && this._shapeIndex === SHAPE_REGISTRY.length;
+  }
 
   _initRenderer() {
     this._renderer = new THREE.WebGLRenderer({ canvas: this._canvas, antialias: true, alpha: true });
     this._renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
-    this._renderer.setSize(this._canvas.clientWidth, this._canvas.clientHeight);
+    // `false`: CSS owns the canvas box; only the drawing buffer is resized.
+    this._renderer.setSize(this._canvas.clientWidth, this._canvas.clientHeight, false);
     this._renderer.shadowMap.enabled = true;
   }
 
   _initScene() {
     this._scene = new THREE.Scene();
-    this._scene.background = new THREE.Color(this._cfg.BG_COLOR);
-    this._scene.fog = new THREE.Fog(this._cfg.BG_COLOR, this._cfg.FOG_NEAR, this._cfg.FOG_FAR);
+    const bg = new THREE.Color(readToken(COLOR_TOKENS.SCENE_BG));
+    this._scene.background = bg;
+    this._scene.fog = new THREE.Fog(bg, this._cfg.FOG_NEAR, this._cfg.FOG_FAR);
   }
 
   _initCamera() {
@@ -117,19 +195,31 @@ export class Scene3D {
   }
 
   _initLights() {
-    this._scene.add(new THREE.AmbientLight(0xffffff, this._cfg.AMBIENT_INTENSITY));
-    const dir = new THREE.DirectionalLight(0xffffff, this._cfg.DIRECTIONAL_INTENSITY);
+    const light = new THREE.Color(readToken(COLOR_TOKENS.LIGHT));
+    this._scene.add(new THREE.AmbientLight(light, this._cfg.AMBIENT_INTENSITY));
+    // Sky/ground fill so dark or metallic parts of loaded models stay readable.
+    this._scene.add(new THREE.HemisphereLight(light, new THREE.Color(readToken(COLOR_TOKENS.SCENE_BG)), this._cfg.HEMISPHERE_INTENSITY));
+    const dir = new THREE.DirectionalLight(light, this._cfg.DIRECTIONAL_INTENSITY);
     dir.position.set(5, 5, 5); dir.castShadow = true;
     this._scene.add(dir);
-    const pt = new THREE.PointLight(COLOR_PALETTE.CYAN, this._cfg.POINT_INTENSITY, 10);
+    const pt = new THREE.PointLight(light, this._cfg.POINT_INTENSITY, 10);
     pt.position.set(-3, 3, 3);
     this._scene.add(pt);
   }
 
   _spawnMesh() {
-    if (this._mesh) { this._scene.remove(this._mesh); this._mesh.geometry.dispose(); }
+    if (this._mesh) {
+      this._scene.remove(this._mesh);
+      // Built-in shapes are rebuilt on demand; the loaded model is kept for cycling back.
+      if (this._mesh !== this._customModel) disposeObject(this._mesh);
+    }
+    if (this._showingCustom()) {
+      this._mesh = this._customModel;
+      this._scene.add(this._mesh);
+      return;
+    }
     const shape    = SHAPE_REGISTRY[this._shapeIndex];
-    const color    = COLOR_CYCLE[this._colorIndex];
+    const color    = this._colors[this._colorIndex];
     const geometry = shape.factory();
     const material = new THREE.MeshStandardMaterial({
       color, emissive: color,
@@ -155,15 +245,16 @@ export class Scene3D {
 
   _initResizeObserver() {
     const observer = new ResizeObserver(() => this._onResize());
-    observer.observe(this._canvas);
+    observer.observe(this._canvas.parentElement ?? this._canvas);
   }
 
   _onResize() {
     if (!this._camera || !this._renderer) return;
     const w = this._canvas.clientWidth, h = this._canvas.clientHeight;
+    if (!w || !h) return;
     this._camera.aspect = w / h;
     this._camera.updateProjectionMatrix();
-    this._renderer.setSize(w, h);
+    this._renderer.setSize(w, h, false);
   }
 
   _clampPos(v) { return Math.max(-this._cfg.POSITION_LIMIT, Math.min(this._cfg.POSITION_LIMIT, v)); }

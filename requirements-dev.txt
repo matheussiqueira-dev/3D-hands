@@ -1,0 +1,8 @@
+# Development and CI tools (the app itself only needs requirements.txt).
+-r requirements.txt
+pytest==9.1.1
+pip-audit==2.10.1
+# scripts/generate_brand_assets.py
+fonttools==4.66.1
+brotli==1.2.0
+pillow==12.3.0

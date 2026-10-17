@@ -1,6 +1,6 @@
 """
 Unit tests for utils/smoothing.py
-Author: Matheus Siqueira <https://www.matheussiqueira.dev/>
+Author: Matheus Siqueira <https://www.matheussiqueira.dev>
 """
 from __future__ import annotations
 import pytest

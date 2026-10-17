@@ -14,7 +14,7 @@ from core.logger import configure_logging
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Gesture AI 3D Hands")
+    parser = argparse.ArgumentParser(description="3D Hands")
     parser.add_argument("--simple", action="store_true", help="Executa a versao simplificada")
     args = parser.parse_args()
 
