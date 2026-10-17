@@ -8,11 +8,17 @@
 import { CAMERA_CONFIG, COLOR_TOKENS, MEDIAPIPE_HANDS_BASE_URL, MEDIAPIPE_HANDS_SCRIPT, TRACKING_CONFIG } from './config.js';
 import { LandmarkSmoother, withTimeout } from './utils.js';
 
-/**
- * Error with a stable `code` the UI maps to a user-facing message:
- * 'denied' | 'not-found' | 'in-use' | 'unsupported' | 'model' | 'unknown'.
- */
+/** @typedef {'denied' | 'not-found' | 'in-use' | 'unsupported' | 'ended' | 'model' | 'unknown'} CameraErrorCode */
+/** @typedef {import('./utils.js').TrackedHand & { confidence: number }} DetectedHand */
+/** @typedef {{ hands: DetectedHand[], timestamp: number }} TrackingResult */
+
+/** Error with a stable `code` the UI maps to a user-facing message. */
 export class CameraError extends Error {
+  /**
+   * @param {CameraErrorCode} code
+   * @param {string} message
+   * @param {ErrorOptions} [options]
+   */
   constructor(code, message, options) {
     super(message, options);
     this.name = 'CameraError';
@@ -48,31 +54,66 @@ const GET_USER_MEDIA_CODES = Object.freeze({
   NotReadableError: 'in-use', TrackStartError: 'in-use',
 });
 
+/** @param {unknown} err */
+function errorText(err) {
+  return err instanceof Error ? err.message : String(err);
+}
+
+/**
+ * getUserMedia with every rejection mapped to a CameraError (the original is kept as `cause`).
+ * @param {MediaStreamConstraints} constraints
+ */
+async function requestCamera(constraints) {
+  try {
+    return await navigator.mediaDevices.getUserMedia(constraints);
+  } catch (err) {
+    const name = err instanceof Error ? err.name : '';
+    const code = GET_USER_MEDIA_CODES[/** @type {keyof typeof GET_USER_MEDIA_CODES} */ (name)] ?? 'unknown';
+    throw new CameraError(code, `getUserMedia failed: ${name || errorText(err)}`, { cause: err });
+  }
+}
+
 export class HandTracker {
+  /**
+   * @param {HTMLVideoElement} videoEl
+   * @param {HTMLCanvasElement} overlayEl
+   * @param {Partial<typeof CAMERA_CONFIG>} [camCfg]
+   * @param {Partial<typeof TRACKING_CONFIG>} [trackCfg]
+   */
   constructor(videoEl, overlayEl, camCfg = {}, trackCfg = {}) {
     if (!(videoEl instanceof HTMLVideoElement))    throw new TypeError('videoEl must be an HTMLVideoElement');
     if (!(overlayEl instanceof HTMLCanvasElement)) throw new TypeError('overlayEl must be an HTMLCanvasElement');
+    const ctx = overlayEl.getContext('2d');
+    if (!ctx) throw new TypeError('overlayEl has no 2D context');
     this._video    = videoEl;
     this._canvas   = overlayEl;
-    this._ctx      = overlayEl.getContext('2d');
+    this._ctx      = ctx;
     this._camCfg   = { ...CAMERA_CONFIG,   ...camCfg   };
     this._trackCfg = { ...TRACKING_CONFIG, ...trackCfg };
+    /** @type {((result: TrackingResult) => void)[]} */
     this._resultCbs  = [];
+    /** @type {((error: CameraError) => void)[]} */
     this._errorCbs   = [];
+    /** @type {MediaStream | null} */
     this._stream     = null;
+    /** @type {MediaPipeHands | null} */
     this._hands      = null;
+    /** @type {number | null} */
     this._rafHandle  = null;
     this._running    = false;
     this._initialized = false;
+    this._runId       = 0; // bumped on every stop so a frame awaiting send() cannot revive an old loop
     this._colors      = { mark: '', halo: '' };
     this._smoother    = new LandmarkSmoother({ alpha: this._trackCfg.SMOOTHING_ALPHA });
   }
 
+  /** @param {(result: TrackingResult) => void} cb */
   onResults(cb) {
     if (typeof cb !== 'function') throw new TypeError('onResults callback must be a function');
     this._resultCbs.push(cb);
   }
 
+  /** @param {(error: CameraError) => void} cb */
   onError(cb) {
     if (typeof cb !== 'function') throw new TypeError('onError callback must be a function');
     this._errorCbs.push(cb);
@@ -90,7 +131,7 @@ export class HandTracker {
       await loadHandsScript();
       await this._initMediaPipe();
       this._running = true;
-      this._scheduleFrame();
+      this._scheduleFrame(this._runId);
     } catch (err) {
       const error = err instanceof CameraError
         ? err
@@ -103,6 +144,7 @@ export class HandTracker {
 
   stop() {
     this._running = false;
+    this._runId += 1;
     if (this._rafHandle !== null) { cancelAnimationFrame(this._rafHandle); this._rafHandle = null; }
     if (this._stream)  { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
     this._video.srcObject = null;
@@ -116,21 +158,23 @@ export class HandTracker {
 
   async _initMediaPipe() {
     if (this._initialized) return;
-    if (typeof window.Hands === 'undefined')
+    const Hands = window.Hands;
+    if (typeof Hands === 'undefined')
       throw new CameraError('model', 'MediaPipe Hands is not loaded.');
-    this._hands = new window.Hands({
+    const hands = new Hands({
       locateFile: file => MEDIAPIPE_HANDS_BASE_URL + file,
     });
-    this._hands.setOptions({
+    this._hands = hands;
+    hands.setOptions({
       maxNumHands:            this._trackCfg.MAX_HANDS,
       modelComplexity:        this._trackCfg.MODEL_COMPLEXITY,
       minDetectionConfidence: this._trackCfg.MIN_DETECTION_CONF,
       minTrackingConfidence:  this._trackCfg.MIN_TRACKING_CONF,
     });
-    this._hands.onResults(raw => this._handleRawResults(raw));
+    hands.onResults(raw => this._handleRawResults(raw));
     try {
       await withTimeout(
-        this._hands.initialize(),
+        hands.initialize(),
         this._trackCfg.MODEL_INIT_TIMEOUT_MS,
         () => new CameraError('model', `MediaPipe Hands did not initialize within ${this._trackCfg.MODEL_INIT_TIMEOUT_MS} ms`),
       );
@@ -152,18 +196,26 @@ export class HandTracker {
       },
     };
     try {
-      this._stream = await navigator.mediaDevices.getUserMedia(constraints);
+      this._stream = await requestCamera(constraints);
     } catch (err) {
-      if (err?.name === 'OverconstrainedError' || err?.name === 'ConstraintNotSatisfiedError') {
-        this._stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      } else {
-        throw new CameraError(GET_USER_MEDIA_CODES[err?.name] ?? 'unknown', `getUserMedia failed: ${err?.name ?? err}`, { cause: err });
-      }
+      const unsupportedConstraints = err instanceof CameraError && err.cause instanceof Error
+        && (err.cause.name === 'OverconstrainedError' || err.cause.name === 'ConstraintNotSatisfiedError');
+      if (!unsupportedConstraints) throw err;
+      this._stream = await requestCamera({ video: true });
+    }
+    // Unplugged camera or permission revoked mid-session: the track ends and the video freezes.
+    for (const track of this._stream.getVideoTracks()) {
+      track.addEventListener('ended', () => {
+        if (!this._running) return;
+        this.stop();
+        this._emitError(new CameraError('ended', 'Camera track ended'));
+      }, { once: true });
     }
     this._video.muted = true;
     this._video.playsInline = true;
     this._video.srcObject = this._stream;
-    await new Promise((resolve, reject) => {
+    /** @type {Promise<void>} */
+    const ready = new Promise((resolve, reject) => {
       this._video.onloadedmetadata = () => {
         this._canvas.width  = this._video.videoWidth;
         this._canvas.height = this._video.videoHeight;
@@ -172,24 +224,38 @@ export class HandTracker {
       this._video.onerror = () => reject(new Error('Video element failed to load camera stream'));
       this._video.play().catch(reject);
     });
+    await ready;
   }
 
-  _scheduleFrame() {
-    if (!this._running) return;
-    this._rafHandle = requestAnimationFrame(() => this._processFrame());
+  /** @param {number} runId */
+  _scheduleFrame(runId) {
+    if (!this._running || runId !== this._runId) return;
+    this._rafHandle = requestAnimationFrame(() => this._processFrame(runId));
   }
 
-  async _processFrame() {
-    if (!this._running || !this._hands || this._video.readyState < 2) {
-      this._scheduleFrame(); return;
+  /** @param {number} runId */
+  async _processFrame(runId) {
+    if (!this._running || runId !== this._runId) return;
+    const hands = this._hands;
+    if (!hands || this._video.readyState < 2) {
+      this._scheduleFrame(runId); return;
     }
-    try { await this._hands.send({ image: this._video }); }
-    catch (err) { this._emitError(new Error('Frame processing error: ' + (err?.message ?? err))); }
-    this._scheduleFrame();
+    try {
+      await hands.send({ image: this._video });
+    } catch (err) {
+      // A failing model fails every frame: stop once instead of erroring 60 times a second.
+      if (runId !== this._runId) return;
+      this.stop();
+      this._emitError(new CameraError('model', `Frame processing failed: ${errorText(err)}`, { cause: err }));
+      return;
+    }
+    this._scheduleFrame(runId);
   }
 
+  /** @param {MediaPipeHandsResults} rawResults */
   _handleRawResults(rawResults) {
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
+    /** @type {DetectedHand[]} */
     const hands = [];
     const multiLandmarks  = rawResults.multiHandLandmarks  ?? [];
     const multiHandedness = rawResults.multiHandedness     ?? [];
@@ -201,32 +267,37 @@ export class HandTracker {
       hands.push({ landmarks, handedness: handedness?.label ?? 'Unknown', confidence: handedness?.score ?? 0 });
     }
     // The overlay shows the raw detection; gestures use the smoothed landmarks.
+    /** @type {TrackingResult} */
     const result = { hands: this._smoother.smooth(hands), timestamp: performance.now() };
     this._resultCbs.forEach(cb => { try { cb(result); } catch {} });
   }
 
   /** Light marks over a dark halo so the skeleton reads on any camera frame. */
+  /** @param {MediaPipeLandmark[]} landmarks */
   _drawHandOverlay(landmarks) {
+    const ctx = this._ctx;
     const W = this._canvas.width, H = this._canvas.height;
     const { LANDMARK_RADIUS: r, CONNECTION_LINE_WIDTH: line, HALO_WIDTH: halo } = this._trackCfg;
+    /** @param {string} color @param {number} width */
     const strokeConnections = (color, width) => {
-      this._ctx.strokeStyle = color;
-      this._ctx.lineWidth = width;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = width;
       for (const [a, b] of window.HAND_CONNECTIONS ?? []) {
         const pa = landmarks[a], pb = landmarks[b];
         if (!pa || !pb) continue;
-        this._ctx.beginPath();
-        this._ctx.moveTo(pa.x * W, pa.y * H);
-        this._ctx.lineTo(pb.x * W, pb.y * H);
-        this._ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(pa.x * W, pa.y * H);
+        ctx.lineTo(pb.x * W, pb.y * H);
+        ctx.stroke();
       }
     };
+    /** @param {string} color @param {number} radius */
     const fillPoints = (color, radius) => {
-      this._ctx.fillStyle = color;
+      ctx.fillStyle = color;
       for (const lm of landmarks) {
-        this._ctx.beginPath();
-        this._ctx.arc(lm.x * W, lm.y * H, radius, 0, Math.PI * 2);
-        this._ctx.fill();
+        ctx.beginPath();
+        ctx.arc(lm.x * W, lm.y * H, radius, 0, Math.PI * 2);
+        ctx.fill();
       }
     };
     strokeConnections(this._colors.halo, line + halo * 2);
@@ -235,6 +306,7 @@ export class HandTracker {
     fillPoints(this._colors.mark, r);
   }
 
+  /** @param {CameraError} err */
   _emitError(err) {
     console.error('[HandTracker]', err.message);
     this._errorCbs.forEach(cb => { try { cb(err); } catch {} });

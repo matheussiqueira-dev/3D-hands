@@ -56,6 +56,24 @@ test('a dropped GLB on the stage is loaded', async ({ page }) => {
   await expect(page.locator('#object-type')).toHaveText('Modelo: arrastado.glb');
 });
 
+test('a file dropped outside the stage is ignored instead of opened by the browser', async ({ page }) => {
+  await page.goto('/');
+  await page.waitForFunction(() => window.__app?._scene);
+  const url = page.url();
+  const notCancelled = await page.evaluate(() => {
+    const dt = new DataTransfer();
+    dt.items.add(new File([new Uint8Array(12)], 'fora.glb', { type: 'model/gltf-binary' }));
+    const target = document.querySelector('footer');
+    const over = new DragEvent('dragover', { bubbles: true, cancelable: true, dataTransfer: dt });
+    const drop = new DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: dt });
+    // dispatchEvent returns false only when a listener called preventDefault().
+    return [target.dispatchEvent(over), target.dispatchEvent(drop)];
+  });
+  expect(notCancelled).toEqual([false, false]);
+  expect(page.url()).toBe(url);
+  await expect(page.locator('#object-type')).toHaveText('Cubo');
+});
+
 test('a textured GLB keeps its embedded texture under the CSP', async ({ page }) => {
   const textureErrors = [];
   page.on('console', (msg) => { if (/texture|Content Security Policy/i.test(msg.text())) textureErrors.push(msg.text()); });

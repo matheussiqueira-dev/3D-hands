@@ -48,6 +48,12 @@ export class ModelPanel {
     });
     sampleBtn?.addEventListener('click', () => this.loadSample());
     if (dropZone) this._bindDrop(dropZone);
+    // A file dropped anywhere else would make the browser open or download it.
+    for (const type of ['dragover', 'drop']) {
+      window.addEventListener(type, (event) => {
+        if (event instanceof DragEvent && event.dataTransfer?.types.includes('Files')) event.preventDefault();
+      });
+    }
   }
 
   async loadSample() {

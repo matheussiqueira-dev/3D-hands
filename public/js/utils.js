@@ -59,8 +59,9 @@ export class LandmarkSmoother {
   }
 
   /**
-   * @param {TrackedHand[]} hands
-   * @returns {TrackedHand[]} same order and handedness, smoothed landmarks
+   * @template {TrackedHand} H
+   * @param {H[]} hands
+   * @returns {H[]} same order and fields, smoothed landmarks
    */
   smooth(hands) {
     /** @type {Map<string, Point[]>} */

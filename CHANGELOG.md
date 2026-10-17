@@ -4,7 +4,16 @@ Todas as mudanças relevantes deste projeto. Formato baseado em [Keep a Changelo
 
 ## [Não lançado]
 
+### Corrigido
+- "Tentar novamente" não fazia nada depois de um erro de câmera ou de modelo durante o uso: a sessão ficava marcada como ativa. Todo erro de câmera agora passa por um único caminho que encerra a sessão.
+- Uma falha do modelo de mãos durante o uso repetia o erro a cada quadro; agora a câmera para uma vez e mostra a mensagem.
+- Câmera desconectada ou com acesso retirado durante o uso deixava o vídeo congelado sem aviso; agora aparece "A câmera parou de enviar imagem", com "Tentar novamente".
+- A segunda tentativa de abrir a câmera (sem restrições de resolução) não traduzia o erro e mostrava a mensagem genérica em vez de "A câmera foi bloqueada".
+- Parar e reiniciar a câmera enquanto um quadro estava em processamento podia deixar dois laços de quadros rodando.
+- Soltar um arquivo fora da área da cena fazia o navegador abrir ou baixar o arquivo.
+
 ### Alterado
+- `app.js`, `scene-3d.js` e `hand-tracker.js` passam a ser conferidos pelo `tsc` em modo estrito, como os demais módulos; os elementos da página são procurados por uma tabela tipada que confere a classe de cada um. Os tipos do Three.js vêm de `@types/three` 0.160.0 (só desenvolvimento).
 - Dependências de desenvolvimento: `@playwright/test` 1.64.1 e `@axe-core/playwright` 4.14.0.
 - App desktop: `numpy` 2.5.4, `scikit-learn` 1.9.1, `joblib` 1.6.0, `pandas` 3.0.6, `pygame-ce` 2.5.8 e `fonttools` 4.67.0. Versões maiores (`mediapipe` 1.x, `opencv-contrib-python` 5.x) ficam para uma mudança própria.
 
