@@ -10,8 +10,13 @@ test.use({
   },
 });
 
-test('hand tracking starts with a fake camera under the CSP', async ({ page }) => {
+test('hand tracking starts with a fake camera under the CSP, loading nothing from other origins', async ({ page, baseURL }) => {
   const problems = [];
+  const foreign = [];
+  page.on('request', (req) => {
+    const url = new URL(req.url());
+    if (/^https?:$/.test(url.protocol) && url.origin !== new URL(String(baseURL)).origin) foreign.push(req.url());
+  });
   page.on('console', (msg) => { if (msg.type() === 'error') problems.push(msg.text()); });
   page.on('pageerror', (err) => problems.push(err.message));
   await page.goto('/');
@@ -22,6 +27,6 @@ test('hand tracking starts with a fake camera under the CSP', async ({ page }) =
   await expect(page.getByRole('alert')).toBeHidden();
   // The model is processing frames: results arrive even without a hand in view.
   await expect.poll(() => page.evaluate(() => window.__app._fps.value), { timeout: 30_000 }).toBeGreaterThan(0);
-  expect(await page.evaluate(() => Array.isArray(window.HAND_CONNECTIONS))).toBe(true);
+  expect(foreign).toEqual([]);
   expect(problems.filter((p) => /Content Security Policy|Refused/i.test(p))).toEqual([]);
 });

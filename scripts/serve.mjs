@@ -26,6 +26,8 @@ const MIME = {
   '.png': 'image/png',
   '.ico': 'image/x-icon',
   '.woff2': 'font/woff2',
+  '.wasm': 'application/wasm',
+  '.task': 'application/octet-stream',
   '.txt': 'text/plain; charset=utf-8',
 };
 

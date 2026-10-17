@@ -13,7 +13,12 @@ Todas as mudanças relevantes deste projeto. Formato baseado em [Keep a Changelo
 - Soltar um arquivo fora da área da cena fazia o navegador abrir ou baixar o arquivo.
 
 ### Alterado
-- `app.js`, `scene-3d.js` e `hand-tracker.js` passam a ser conferidos pelo `tsc` em modo estrito, como os demais módulos; os elementos da página são procurados por uma tabela tipada que confere a classe de cada um. Os tipos do Three.js vêm de `@types/three` 0.160.0 (só desenvolvimento).
+- Reconhecimento de mãos migrado do MediaPipe Hands legado (0.4.1675469240) para o `HandLandmarker` do `@mediapipe/tasks-vision` 1.1.1, em modo vídeo, com delegate GPU e fallback para CPU. O modelo é o mesmo `hand_landmarker.task` (`float16/1`) do app desktop.
+- Three.js atualizado de 0.160.0 para 0.186.1, com `@types/three` 0.186.0.
+- Three.js, MediaPipe (código, WASM e modelo) passam a ser servidos pelo próprio site: `npm run build` gera `public/vendor/` com esbuild (módulos minificados, com tree-shaking e hash no nome) e escreve o import map e o hash da CSP. A pasta é gerada no deploy e não é versionada ([ADR-0003](docs/adr/0003-dependencias-self-hosted-com-build.md), que substitui o ADR-0002).
+- CSP só com `'self'`: sai `https://cdn.jsdelivr.net` de `script-src` e `connect-src`, e `blob:` de `worker-src` e `media-src`. `/vendor/` ganha cache imutável.
+- Three.js baixado na abertura da página: de 135 KB para 119 KB com brotli; `GLTFLoader`: de 25 KB para 12 KB.
+- `app.js`, `scene-3d.js` e `hand-tracker.js` passam a ser conferidos pelo `tsc` em modo estrito, como os demais módulos; os elementos da página são procurados por uma tabela tipada que confere a classe de cada um. Os tipos do Three.js vêm de `@types/three` (só desenvolvimento).
 - Dependências de desenvolvimento: `@playwright/test` 1.64.1 e `@axe-core/playwright` 4.14.0.
 - App desktop: `numpy` 2.5.4, `scikit-learn` 1.9.1, `joblib` 1.6.0, `pandas` 3.0.6, `pygame-ce` 2.5.8 e `fonttools` 4.67.0. Versões maiores (`mediapipe` 1.x, `opencv-contrib-python` 5.x) ficam para uma mudança própria.
 

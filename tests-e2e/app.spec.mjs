@@ -61,12 +61,15 @@ test('the local server answers 404 to a malformed path instead of crashing', asy
   expect((await request.get('/')).status()).toBe(200);
 });
 
-test('the hand model is not downloaded until the camera is started', async ({ page }) => {
-  const mediapipe = [];
-  page.on('request', (req) => { if (req.url().includes('@mediapipe')) mediapipe.push(req.url()); });
+test('the hand model and the GLTFLoader are not downloaded until they are needed', async ({ page }) => {
+  const requested = [];
+  page.on('request', (req) => requested.push(new URL(req.url()).pathname));
   await page.goto('/', { waitUntil: 'networkidle' });
-  await page.waitForFunction(() => window.__app);
-  expect(mediapipe).toEqual([]);
+  await page.waitForFunction(() => window.__app?._scene);
+  const vendor = requested.filter((path) => path.startsWith('/vendor/'));
+  // Three.js itself is needed for the scene; MediaPipe (module, WASM, model) and the loader are not.
+  expect(vendor.some((path) => /^\/vendor\/three-[A-Z0-9]{8}\.js$/.test(path))).toBe(true);
+  expect(vendor.filter((path) => /hand-landmarker|hand_landmarker|tasks-vision|gltf-loader/.test(path))).toEqual([]);
 });
 
 test('the page loads with a clean console (no errors, CSP violations or deprecation warnings)', async ({ page }) => {

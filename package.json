@@ -2,7 +2,7 @@
   "name": "3d-hands",
   "version": "1.2.0",
   "private": true,
-  "description": "Controle um objeto 3D com gestos da mão no navegador (Three.js + MediaPipe Hands), com app desktop em Python.",
+  "description": "Controle um objeto 3D com gestos da mão no navegador (Three.js + MediaPipe Tasks Vision), com app desktop em Python.",
   "author": "Matheus Siqueira <hellomatheusdev@gmail.com> (https://www.matheussiqueira.dev)",
   "homepage": "https://3-d-hands.vercel.app",
   "repository": {
@@ -20,7 +20,7 @@
   "scripts": {
     "dev": "npx --yes vercel@54.9.1 dev",
     "serve": "node scripts/serve.mjs",
-    "build": "node scripts/write-version.mjs",
+    "build": "node scripts/write-version.mjs && node scripts/build-vendor.mjs",
     "check": "node scripts/check-syntax.mjs",
     "test": "node --test \"tests-web/**/*.test.mjs\"",
     "test:e2e": "playwright test",
@@ -38,7 +38,12 @@
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
     "@playwright/test": "1.64.1",
-    "@types/three": "0.160.0",
+    "@types/three": "0.186.0",
+    "esbuild": "0.28.2",
     "typescript": "6.0.3"
+  },
+  "dependencies": {
+    "@mediapipe/tasks-vision": "1.1.1",
+    "three": "0.186.1"
   }
 }

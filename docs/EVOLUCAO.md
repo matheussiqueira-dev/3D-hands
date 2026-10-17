@@ -59,7 +59,7 @@ O 3D Hands passa a ser apresentado como **visualizador de produto 3D controlado 
 | A3 | Suavização de landmarks com identidade por mão | feito |
 | A4 | Tempo limite e nova tentativa no carregamento do modelo | feito |
 | A5 | Three.js por import map; `GLTFLoader` e MediaPipe sob demanda | feito |
-| A6 | Migrar MediaPipe Hands (legado) para `@mediapipe/tasks-vision` | roteiro |
+| A6 | Migrar MediaPipe Hands (legado) para `@mediapipe/tasks-vision`, com Three.js 0.186 e ambos self-hosted (ADR-0003) | feito |
 | A7 | Tipar `hand-tracker.js`, `scene-3d.js` e `app.js` (declarações para Three.js e MediaPipe) | roteiro |
 | A8 | Contrato único de gestos entre o reconhecedor JS e o Python (catálogo em JSON gerado) | roteiro |
 
@@ -85,14 +85,14 @@ O 3D Hands passa a ser apresentado como **visualizador de produto 3D controlado 
 
 ## 4. Guias táticos de implementação
 
-### A6. Migrar para `@mediapipe/tasks-vision`
+### A6. Migrar para `@mediapipe/tasks-vision` (feito)
 
-- **O quê:** trocar a solução legada `Hands` pela `HandLandmarker` da Tasks API, em modo `VIDEO`, com delegate GPU e fallback para CPU.
-- **Como:** novo adaptador em `hand-tracker.js` que entrega o mesmo formato `{ hands: [{ landmarks, handedness }] }`; o resto da aplicação não muda. O WASM vem do pacote `@mediapipe/tasks-vision` (versão fixa, SRI no módulo) e o modelo `hand_landmarker.task` (`float16/1`, o mesmo do app Python) é versionado em `public/mediapipe/`.
-- **Bibliotecas:** `@mediapipe/tasks-vision` (versão fixa).
-- **CSP:** manter `'wasm-unsafe-eval'`; `connect-src` passa a incluir o próprio site para o `.task`.
-- **Negócio:** modelo mantido pelo Google, mais preciso e com melhor desempenho; alinha web e desktop no mesmo modelo.
-- **Teste:** o e2e de câmera falsa continua válido; acrescentar um teste de contrato do adaptador com resultados gravados.
+- **O quê:** a solução legada `Hands` foi trocada pela `HandLandmarker` da Tasks API, em modo `VIDEO`, com delegate GPU e fallback para CPU. Na mesma mudança, o Three.js foi de 0.160.0 para 0.186.1.
+- **Como:** `hand-tracker.js` entrega o mesmo `TrackingResult` de antes; o resto da aplicação não mudou. `scripts/build-vendor.mjs` gera em `public/vendor/` o módulo do tasks-vision, o Three.js com tree-shaking e o `GLTFLoader`, copia o WASM e o modelo `hand_landmarker.task` (`float16/1`, o mesmo do app Python, em `models/mediapipe/`) e escreve o import map e o hash da CSP. Decisão e alternativas no [ADR-0003](adr/0003-dependencias-self-hosted-com-build.md).
+- **Bibliotecas:** `three` 0.186.1 e `@mediapipe/tasks-vision` 1.1.1 (versão exata), `esbuild` no build.
+- **CSP:** só `'self'`, com `'wasm-unsafe-eval'`; o jsDelivr saiu de `script-src` e `connect-src`.
+- **Negócio:** modelo mantido pelo Google; web e desktop usam o mesmo modelo; nenhum código de terceiros vem de outra origem.
+- **Teste:** o e2e de câmera falsa sob a CSP continua, agora conferindo que nada vem de outra origem; os e2e de erro trocam o módulo `vendor/hand-landmarker` por um falso (contrato de opções, resultado com uma mão, fallback para CPU, falha durante o uso).
 
 ### A7. Tipar os módulos com DOM
 
@@ -111,7 +111,7 @@ O 3D Hands passa a ser apresentado como **visualizador de produto 3D controlado 
 
 ### P2. Draco e KTX2
 
-- **Como:** registrar `DRACOLoader` e `KTX2Loader` de `three/addons` no `GLTFLoader`, com decodificadores com versão fixa no jsDelivr; acrescentar os módulos ao import map com SRI e permitir `worker-src blob:` (já presente) e o caminho dos decodificadores em `connect-src`.
+- **Como:** registrar `DRACOLoader` e `KTX2Loader` de `three/addons` no `GLTFLoader`: acrescentar os dois como entradas do `scripts/build-vendor.mjs` (ficam no import map) e copiar os decodificadores de `three/examples/jsm/libs/` para `public/vendor/`; os decodificadores rodam em workers, então `worker-src` precisa voltar a aceitar `blob:`.
 - **Negócio:** modelos exportados por ferramentas de e-commerce (e pelo próprio glTF Pipeline) costumam vir comprimidos; sem isso, o visualizador recusa arquivos reais.
 
 ### P3. Painel de métricas da sessão
@@ -187,61 +187,33 @@ export function checkModelFile(file, header) {
 }
 ```
 
-### 5.4 Feito: MediaPipe sob demanda, com SRI e tempo limite
+### 5.4 Feito: MediaPipe sob demanda, self-hosted e com tempo limite
 
 `public/js/hand-tracker.js`.
 
 ```js
-function loadHandsScript() {
-  if (typeof window.Hands !== 'undefined') return Promise.resolve();
-  handsScriptPromise ??= new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = MEDIAPIPE_HANDS_SCRIPT.src;
-    script.integrity = MEDIAPIPE_HANDS_SCRIPT.integrity;
-    script.crossOrigin = 'anonymous';
-    script.onload = () => resolve();
-    script.onerror = () => {
-      handsScriptPromise = null; // allow "Tentar novamente" to request it again
-      script.remove();
-      reject(new CameraError('model', 'Failed to load MediaPipe Hands script'));
-    };
-    document.head.append(script);
+function loadVisionModule() {
+  visionModulePromise ??= import('vendor/hand-landmarker').catch((err) => {
+    visionModulePromise = null; // allow "Tentar novamente" to request it again
+    throw new CameraError('model', `Failed to load MediaPipe Tasks Vision: ${errorText(err)}`, { cause: err });
   });
-  return handsScriptPromise;
+  return visionModulePromise;
 }
 ```
 
-### 5.5 Roteiro A6: adaptador para `HandLandmarker` (não executado)
+### 5.5 Feito (A6): `HandLandmarker` em modo `VIDEO`
 
-Substitui `_initMediaPipe` e `_processFrame` mantendo o formato de saída. Conferir a API na versão fixada de `@mediapipe/tasks-vision` antes de usar.
+`public/js/hand-tracker.js`. Só quadros novos da câmera vão ao modelo, com timestamps sempre crescentes; o resultado é convertido para o mesmo `TrackingResult` da solução legada.
 
 ```js
-import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
-
-export async function createLandmarker(wasmBaseUrl, modelUrl) {
-  const fileset = await FilesetResolver.forVisionTasks(wasmBaseUrl);
-  const options = (delegate) => ({
-    baseOptions: { modelAssetPath: modelUrl, delegate },
-    runningMode: 'VIDEO',
-    numHands: 2,
-    minHandDetectionConfidence: 0.7,
-    minTrackingConfidence: 0.5,
-  });
-  try {
-    return await HandLandmarker.createFromOptions(fileset, options('GPU'));
-  } catch {
-    return HandLandmarker.createFromOptions(fileset, options('CPU'));
-  }
+if (!landmarker || video.readyState < 2 || video.currentTime === this._lastVideoTime) {
+  this._scheduleFrame(runId); return;
 }
-
-/** Same shape the rest of the app already consumes. */
-export function detect(landmarker, video, timestampMs) {
-  const result = landmarker.detectForVideo(video, timestampMs);
-  return result.landmarks.map((landmarks, i) => ({
-    landmarks,
-    handedness: result.handedness[i]?.[0]?.categoryName ?? 'Unknown',
-  }));
-}
+this._lastVideoTime = video.currentTime;
+const timestamp = Math.max(performance.now(), this._lastTimestamp + 1);
+this._lastTimestamp = timestamp;
+raw = landmarker.detectForVideo(video, timestamp);
+// raw.landmarks[i] → hand.landmarks; raw.handedness[i][0].categoryName → hand.handedness
 ```
 
 ### 5.6 Roteiro V5: temporizador de inatividade do modo apresentação (não executado)
@@ -283,7 +255,7 @@ export function createEmbedBridge(allowedOrigins, target = window.parent) {
 
 ### 5.8 Roteiro P2: Draco e KTX2 no `GLTFLoader` (não executado)
 
-Exige mapear os módulos no import map com SRI e fixar a versão dos decodificadores.
+Exige acrescentar os loaders ao `scripts/build-vendor.mjs` e copiar os decodificadores para `public/vendor/` (ver P2).
 
 ```js
 const [{ GLTFLoader }, { DRACOLoader }, { KTX2Loader }] = await Promise.all([
@@ -298,6 +270,6 @@ const loader = new GLTFLoader()
 
 ## Referências no repositório
 
-- Decisões: [`docs/adr/0001-frontend-modular-sem-build.md`](adr/0001-frontend-modular-sem-build.md), [`docs/adr/0002-dependencias-por-import-map-e-sob-demanda.md`](adr/0002-dependencias-por-import-map-e-sob-demanda.md)
+- Decisões: [`docs/adr/0001-frontend-modular-sem-build.md`](adr/0001-frontend-modular-sem-build.md), [`docs/adr/0002-dependencias-por-import-map-e-sob-demanda.md`](adr/0002-dependencias-por-import-map-e-sob-demanda.md), [`docs/adr/0003-dependencias-self-hosted-com-build.md`](adr/0003-dependencias-self-hosted-com-build.md)
 - Histórico de versões: [`CHANGELOG.md`](../CHANGELOG.md)
 - Visão geral e comandos: [`README.md`](../README.md)

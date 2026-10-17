@@ -13,10 +13,10 @@ O repositório tem duas partes:
 
 | Parte | Stack | Onde |
 |---|---|---|
-| Web (principal) | HTML e JavaScript (ES modules) sem build, tipado com JSDoc e conferido pelo `tsc` em modo estrito; Three.js 0.160.0 por import map e MediaPipe Hands 0.4.1675469240 sob demanda, ambos por CDN com SRI | `public/` |
+| Web (principal) | HTML e JavaScript (ES modules) sem build, tipado com JSDoc e conferido pelo `tsc` em modo estrito; Three.js 0.186.1 por import map e MediaPipe Tasks Vision 1.1.1 (`HandLandmarker`) sob demanda, ambos servidos pelo próprio site a partir de `public/vendor/`, gerado no build | `public/` |
 | Desktop (referência) | Python, OpenCV, MediaPipe Tasks, pygame-ce e PyOpenGL, com classificador de gestos treinável (scikit-learn) | `app/`, `core/`, `gestures/`, `interaction/`, `ui/`, `utils/`, `vision/` |
 
-Na versão web, o MediaPipe encontra até duas mãos no vídeo da webcam, os pontos passam por uma média móvel que reduz o tremido, um reconhecedor por regras (`public/js/gesture-recognizer.js`) transforma os 21 pontos de cada mão em gestos, e a cena Three.js aplica a ação. O painel de gestos mostra qual gesto foi reconhecido e, nos gestos com retenção, uma barra com o tempo que falta.
+Na versão web, o `HandLandmarker` do MediaPipe encontra até duas mãos no vídeo da webcam, os pontos passam por uma média móvel que reduz o tremido, um reconhecedor por regras (`public/js/gesture-recognizer.js`) transforma os 21 pontos de cada mão em gestos, e a cena Three.js aplica a ação. O painel de gestos mostra qual gesto foi reconhecido e, nos gestos com retenção, uma barra com o tempo que falta.
 
 ## Modelo 3D próprio
 
@@ -34,7 +34,7 @@ O arquivo é validado antes de ir para o parser (extensão, até 25 MB, cabeçal
 | `model-file.js` | validação de arquivos `.glb` | `node --test` |
 | `utils.js` | FPS medido, suavização de landmarks, tempo limite | `node --test` |
 | `format.js`, `config.js` | textos PT-BR e catálogo de gestos (fonte única do painel e do README) | `node --test` |
-| `hand-tracker.js` | câmera e MediaPipe (carregado sob demanda, com tempo limite de 30 s) | Playwright |
+| `hand-tracker.js` | câmera e `HandLandmarker` (carregado sob demanda, delegate GPU com fallback para CPU, tempo limite de 30 s) | Playwright |
 | `scene-3d.js` | cena Three.js, formas e modelo próprio | Playwright |
 | `app.js` | liga os módulos ao DOM | Playwright |
 
@@ -42,7 +42,7 @@ As decisões estruturais estão em [`docs/adr/`](docs/adr) e o roteiro de evolu�
 
 ## Privacidade
 
-O vídeo é processado no seu navegador e não é enviado a nenhum servidor. A página não tem backend nem telemetria; o Three.js e o MediaPipe são baixados do jsDelivr com versão fixa.
+O vídeo é processado no seu navegador e não é enviado a nenhum servidor. A página não tem backend nem telemetria e não baixa nada de outros domínios: o Three.js, o MediaPipe (código, WASM e modelo) e as fontes são servidos pelo próprio site.
 
 ## Gestos
 
@@ -89,7 +89,7 @@ Requisitos: Node 22 ou mais recente.
 
 ```bash
 npm ci
-npm run build    # gera public/version.json (versão e commit do rodapé)
+npm run build    # gera public/version.json (rodapé) e public/vendor/ (Three.js, MediaPipe, WASM e modelo)
 npm run serve    # http://127.0.0.1:3000 com os mesmos headers do vercel.json
 ```
 
@@ -121,7 +121,7 @@ No modo de depuração, `T` inicia a coleta de amostras de um gesto (o nome é d
 
 A configuração vem de variáveis de ambiente `GESTURE_*`, lidas em `core/config.py`; o app não carrega arquivos `.env` sozinho. O `.env.example` lista as principais.
 
-O modelo `models/mediapipe/hand_landmarker.task` é o Hand Landmarker do MediaPipe, variante `float16/1`, baixado de `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task` (licença Apache-2.0). Só o app desktop usa esse arquivo.
+O modelo `models/mediapipe/hand_landmarker.task` é o Hand Landmarker do MediaPipe, variante `float16/1`, baixado de `https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task` (licença Apache-2.0). O app desktop o lê dessa pasta, e o `npm run build` o copia para `public/vendor/` para a versão web.
 
 Testes do Python:
 
@@ -151,7 +151,9 @@ tests/             testes pytest do app desktop
 
 ## Deploy
 
-O projeto Vercel `3-d-hands` publica `public/` (`outputDirectory` no `vercel.json`) e roda `npm run build` para gerar o `version.json`. Não há funções serverless nem variáveis de ambiente obrigatórias. O `vercel.json` define CSP (o import map inline entra por hash, sem `unsafe-inline`), `Permissions-Policy: camera=(self)`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` e cache imutável para `/fonts/`.
+O projeto Vercel `3-d-hands` publica `public/` (`outputDirectory` no `vercel.json`) e roda `npm run build`, que gera o `version.json` e o `public/vendor/` a partir do `package-lock.json` (a pasta não é versionada; ver [ADR-0003](docs/adr/0003-dependencias-self-hosted-com-build.md)). Não há funções serverless nem variáveis de ambiente obrigatórias. O `vercel.json` define CSP só com `'self'` (o import map inline entra por hash, sem `unsafe-inline`; `'wasm-unsafe-eval'` para o MediaPipe), `Permissions-Policy: camera=(self)`, `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options` e cache imutável para `/fonts/` e `/vendor/`.
+
+Ao atualizar o Three.js ou o MediaPipe, ou ao usar um `THREE.*` novo no código, rode `npm run build` e versione o `public/index.html` e o `vercel.json`: o build escreve neles o import map e o hash da CSP. No CI e na Vercel o build só confere esses dois arquivos e falha se estiverem desatualizados.
 
 O favicon e a imagem OG são gerados por `python scripts/generate_brand_assets.py` (dependências em `requirements-dev.txt`).
 

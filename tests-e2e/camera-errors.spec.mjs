@@ -31,7 +31,7 @@ test('a missing camera points to the keyboard controls', async ({ page }) => {
   await expect(alert.getByRole('button', { name: 'Tentar novamente' })).toBeHidden();
 });
 
-test('a tampered model script is blocked by SRI and reported as a model error', async ({ page }) => {
+test('a hand model that fails to download is reported as a model error', async ({ page }) => {
   await page.addInitScript(() => {
     navigator.mediaDevices.getUserMedia = async () => {
       const canvas = Object.assign(document.createElement('canvas'), { width: 64, height: 48 });
@@ -39,13 +39,12 @@ test('a tampered model script is blocked by SRI and reported as a model error', 
       return canvas.captureStream(15);
     };
   });
-  await page.route('**/@mediapipe/hands@*/hands.js', (route) =>
-    route.fulfill({ status: 200, contentType: 'text/javascript', body: 'window.tampered = true;' }));
+  await page.route('**/vendor/hand_landmarker-*.task', (route) => route.fulfill({ status: 404, body: 'Not found' }));
   await page.goto('/');
   await page.waitForFunction(() => window.__app);
   await page.locator('#start-btn').click();
   const alert = page.getByRole('alert');
-  await expect(alert).toContainText('Não foi possível carregar o modelo de mãos');
+  await expect(alert).toContainText('Não foi possível carregar o modelo de mãos', { timeout: 30_000 });
   await expect(alert.getByRole('button', { name: 'Tentar novamente' })).toBeVisible();
-  expect(await page.evaluate(() => window.tampered)).toBeUndefined();
+  await expect(page.locator('#camera-status')).not.toHaveText('Câmera: ativa');
 });
