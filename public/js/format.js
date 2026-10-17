@@ -30,6 +30,7 @@ export const CAMERA_ERROR_MESSAGES = Object.freeze({
   'not-found': `Nenhuma câmera encontrada. ${KEYBOARD_HINT}`,
   'in-use': 'A câmera está sendo usada por outro aplicativo. Feche esse aplicativo e clique em Tentar novamente.',
   unsupported: `Este navegador não permite usar a câmera nesta página. ${KEYBOARD_HINT}`,
+  ended: 'A câmera parou de enviar imagem (foi desconectada ou o acesso foi retirado). Confira e clique em Tentar novamente.',
   model: 'Não foi possível carregar o modelo de mãos. Verifique a conexão e clique em Tentar novamente.',
   unknown: 'Não foi possível iniciar a câmera. Clique em Tentar novamente.',
 });

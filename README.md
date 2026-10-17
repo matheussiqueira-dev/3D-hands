@@ -98,9 +98,9 @@ Testes:
 ```bash
 npm test             # testes unitários (node --test): reconhecedor, ações, estados da câmera, validação de .glb, metadados
 npm run test:coverage  # o mesmo, exigindo 80% de linhas nos módulos de lógica
-npm run typecheck    # tsc --checkJs em modo estrito nos módulos de lógica
+npm run typecheck    # tsc --checkJs em modo estrito em todos os módulos (tipos do Three.js por @types/three)
 npm run check        # sintaxe de todos os módulos
-npm run test:e2e     # Playwright: teclado, câmera falsa sob a CSP, erros de câmera e de modelo, .glb, overflow e axe
+npm run test:e2e     # Playwright: teclado, câmera falsa sob a CSP, erros de câmera (no início e durante o uso) e de modelo, .glb, overflow e axe
 ```
 
 No Windows, o Playwright usa o Microsoft Edge instalado (`channel: "msedge"`); no CI, o Chromium do Playwright.

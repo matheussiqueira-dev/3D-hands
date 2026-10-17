@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { formatHistoryEntry, formatPose, gestureLabel } from '../public/js/format.js';
+import { CAMERA_ERROR_MESSAGES, cameraErrorMessage, formatHistoryEntry, formatPose, gestureLabel } from '../public/js/format.js';
 
 test('the pose readout uses PT-BR numbers, degrees and shape names', () => {
   const text = formatPose({
@@ -36,4 +36,13 @@ test('history entries read as PT-BR sentences', () => {
   assert.equal(formatHistoryEntry({ gesture: 'v_sign', detail: 'forma: Esfera', time: '14:03:12' }), 'Sinal de V · forma: Esfera · 14:03:12');
   assert.equal(formatHistoryEntry({ gesture: 'open_palm', time: '14:03:13' }), 'Mão aberta · 14:03:13');
   assert.equal(gestureLabel('unknown_gesture'), 'unknown_gesture');
+});
+
+test('every camera error code has a PT-BR message and unknown codes fall back', () => {
+  for (const code of ['denied', 'not-found', 'in-use', 'unsupported', 'ended', 'model', 'unknown']) {
+    assert.equal(cameraErrorMessage(code), CAMERA_ERROR_MESSAGES[code], code);
+  }
+  assert.match(cameraErrorMessage('ended'), /parou de enviar imagem/);
+  assert.equal(cameraErrorMessage('outro'), CAMERA_ERROR_MESSAGES.unknown);
+  assert.equal(cameraErrorMessage(undefined), CAMERA_ERROR_MESSAGES.unknown);
 });

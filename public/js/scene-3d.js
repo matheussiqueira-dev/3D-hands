@@ -13,21 +13,33 @@ function readToken(name) {
   return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
 }
 
-/** Frees GPU memory held by every mesh, material and texture under `root`. */
+/** Frees GPU memory held by every mesh, material and texture under `root`. @param {THREE.Object3D} root */
 function disposeObject(root) {
   root.traverse((node) => {
-    if (!node.isMesh) return;
-    node.geometry?.dispose();
+    if (!(node instanceof THREE.Mesh)) return;
+    node.geometry.dispose();
+    /** @type {THREE.Material[]} */
     const materials = Array.isArray(node.material) ? node.material : [node.material];
     for (const material of materials) {
-      if (!material) continue;
       for (const value of Object.values(material)) {
-        if (value?.isTexture) value.dispose();
+        if (value instanceof THREE.Texture) value.dispose();
       }
       material.dispose();
     }
   });
 }
+
+/** @typedef {typeof SCENE_CONFIG} SceneConfig */
+/** @typedef {{ x: number, y: number, z: number }} Vec3 */
+/**
+ * @typedef {object} ScenePose
+ * @property {string} shape 'custom' when the loaded model is shown
+ * @property {string | null} modelName
+ * @property {number | null} colorIndex null for a loaded model (it keeps its own materials)
+ * @property {Vec3} position
+ * @property {Vec3} rotation radians
+ * @property {number} scale
+ */
 
 const SHAPE_REGISTRY = [
   { name: 'cube',         factory: () => new THREE.BoxGeometry(1.5, 1.5, 1.5) },
@@ -38,19 +50,36 @@ const SHAPE_REGISTRY = [
 ];
 
 export class Scene3D {
+  /**
+   * @param {HTMLCanvasElement} canvas
+   * @param {Partial<SceneConfig>} [cfg]
+   */
   constructor(canvas, cfg = {}) {
     if (!(canvas instanceof HTMLCanvasElement)) throw new TypeError('canvas must be an HTMLCanvasElement');
     this._canvas  = canvas;
+    /** @type {SceneConfig} */
     this._cfg     = { ...SCENE_CONFIG, ...cfg };
-    this._scene   = null; this._camera  = null;
-    this._renderer = null; this._mesh    = null;
+    // Scene graph and camera need no GPU; only the renderer depends on WebGL.
+    this._scene   = new THREE.Scene();
+    this._camera  = new THREE.PerspectiveCamera(this._cfg.FOV, 1, this._cfg.NEAR, this._cfg.FAR);
+    /** @type {THREE.WebGLRenderer | null} */
+    this._renderer = null;
+    /** @type {THREE.Object3D | null} the object on stage: a built-in shape or `_customModel` */
+    this._mesh    = null;
     this._shapeIndex = 0; this._colorIndex = 0;
-    this._autoRotate = true; this._rafHandle = null;
+    this._autoRotate = true;
+    /** @type {number | null} */
+    this._rafHandle = null;
+    /** @type {Vec3} */
     this._position = { x: 0, y: 0, z: 0 };
+    /** @type {Vec3} */
     this._rotation = { x: 0, y: 0, z: 0 };
     this._scale    = 1.0;
+    /** @type {THREE.Color[]} */
     this._colors   = [];
-    this._customModel = null; // THREE.Group wrapping a loaded glTF, kept while cycling shapes
+    /** @type {THREE.Group | null} wraps a loaded glTF, kept while cycling shapes */
+    this._customModel = null;
+    /** @type {string | null} */
     this._modelName   = null;
   }
 
@@ -77,18 +106,21 @@ export class Scene3D {
     this._renderer?.dispose();
   }
 
+  /** @param {{ x: number, y: number } | null | undefined} delta normalized hand movement */
   translate(delta) {
     if (!delta || !this._mesh) return;
     this._position.x = this._clampPos(this._position.x + delta.x * this._cfg.TRANSLATE_SPEED);
     this._position.y = this._clampPos(this._position.y - delta.y * this._cfg.TRANSLATE_SPEED);
   }
 
+  /** @param {number} angleDelta radians */
   rotate(angleDelta) {
     if (typeof angleDelta !== 'number' || !isFinite(angleDelta)) return;
     this._rotation.y += angleDelta * this._cfg.ROTATE_SPEED;
     this._rotation.x += angleDelta * this._cfg.ROTATE_SPEED * 0.5;
   }
 
+  /** @param {number} delta */
   zoom(delta) {
     if (typeof delta !== 'number' || !isFinite(delta)) return;
     this._scale = Math.max(this._cfg.MIN_SCALE, Math.min(this._cfg.MAX_SCALE, this._scale + delta * this._cfg.ZOOM_SPEED));
@@ -112,9 +144,10 @@ export class Scene3D {
   nextColor() {
     if (this._showingCustom()) return false;
     this._colorIndex = (this._colorIndex + 1) % OBJECT_COLORS.length;
-    if (this._mesh?.material) {
-      this._mesh.material.color.copy(this._colors[this._colorIndex]);
-      this._mesh.material.emissive.copy(this._colors[this._colorIndex]);
+    const material = this._mesh instanceof THREE.Mesh ? this._mesh.material : null;
+    if (material instanceof THREE.MeshStandardMaterial) {
+      material.color.copy(this._colors[this._colorIndex]);
+      material.emissive.copy(this._colors[this._colorIndex]);
     }
     return true;
   }
@@ -152,11 +185,12 @@ export class Scene3D {
     this.reset();
   }
 
+  /** @param {boolean} value */
   setAutoRotate(value) { this._autoRotate = Boolean(value); }
   get currentShape()   { return this._showingCustom() ? 'custom' : SHAPE_REGISTRY[this._shapeIndex].name; }
   get currentScale()   { return this._scale; }
 
-  /** Snapshot of the transform shown to the user (rotation in radians). */
+  /** Snapshot of the transform shown to the user. @returns {ScenePose} */
   getPose() {
     const custom = this._showingCustom();
     return {
@@ -182,16 +216,16 @@ export class Scene3D {
   }
 
   _initScene() {
-    this._scene = new THREE.Scene();
     const bg = new THREE.Color(readToken(COLOR_TOKENS.SCENE_BG));
     this._scene.background = bg;
     this._scene.fog = new THREE.Fog(bg, this._cfg.FOG_NEAR, this._cfg.FOG_FAR);
   }
 
   _initCamera() {
-    const aspect = this._canvas.clientWidth / this._canvas.clientHeight;
-    this._camera = new THREE.PerspectiveCamera(this._cfg.FOV, aspect, this._cfg.NEAR, this._cfg.FAR);
+    const { clientWidth: w, clientHeight: h } = this._canvas;
+    if (w && h) this._camera.aspect = w / h;
     this._camera.position.z = this._cfg.CAMERA_Z;
+    this._camera.updateProjectionMatrix();
   }
 
   _initLights() {
@@ -213,9 +247,9 @@ export class Scene3D {
       // Built-in shapes are rebuilt on demand; the loaded model is kept for cycling back.
       if (this._mesh !== this._customModel) disposeObject(this._mesh);
     }
-    if (this._showingCustom()) {
+    if (this._customModel && this._showingCustom()) {
       this._mesh = this._customModel;
-      this._scene.add(this._mesh);
+      this._scene.add(this._customModel);
       return;
     }
     const shape    = SHAPE_REGISTRY[this._shapeIndex];
@@ -257,6 +291,7 @@ export class Scene3D {
     this._renderer.setSize(w, h, false);
   }
 
+  /** @param {number} v */
   _clampPos(v) { return Math.max(-this._cfg.POSITION_LIMIT, Math.min(this._cfg.POSITION_LIMIT, v)); }
 
   _isWebGLSupported() {

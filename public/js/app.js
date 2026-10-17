@@ -21,23 +21,61 @@ const TEXT_FIELDS = "input, select, textarea";
 const INTERACTIVE = "button, a, summary, .gesture-panel, .history";
 const CONTROL_KEYS = new Set([" ", "Enter", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"]);
 
+/** Every element the app drives: key → [id, expected element class]. */
+const DOM_IDS = /** @type {const} */ ({
+  video: ["webcam", HTMLVideoElement], overlay: ["output-canvas", HTMLCanvasElement],
+  scene: ["scene-canvas", HTMLCanvasElement], sceneError: ["scene-error", HTMLElement],
+  fps: ["fps-counter", HTMLElement], camera: ["camera-status", HTMLElement], hands: ["hands-status", HTMLElement],
+  hint: ["hand-hint", HTMLElement], placeholder: ["camera-placeholder", HTMLElement],
+  start: ["start-btn", HTMLButtonElement], startLabel: ["start-label", HTMLElement], stop: ["stop-btn", HTMLButtonElement],
+  reset: ["reset-btn", HTMLButtonElement], keyboardLink: ["keyboard-link", HTMLElement],
+  shortcuts: ["atalhos", HTMLDetailsElement], history: ["history-list", HTMLElement], panel: ["gesture-panel", HTMLElement],
+  alert: ["camera-alert", HTMLElement], alertMessage: ["camera-alert-message", HTMLElement], retry: ["retry-btn", HTMLButtonElement],
+  poseShape: ["object-type", HTMLElement], poseColor: ["object-color", HTMLElement],
+  posePosition: ["object-position", HTMLElement], poseRotation: ["object-rotation", HTMLElement],
+  poseScale: ["object-scale", HTMLElement], announcer: ["announcer", HTMLElement], footerMeta: ["footer-meta", HTMLElement],
+  dropHint: ["drop-hint", HTMLElement], modelBtn: ["model-btn", HTMLButtonElement], sampleBtn: ["sample-btn", HTMLButtonElement],
+  modelInput: ["model-input", HTMLInputElement], modelStatus: ["model-status", HTMLElement], modelError: ["model-error", HTMLElement],
+});
+
+/** @typedef {{ -readonly [K in keyof typeof DOM_IDS]: InstanceType<(typeof DOM_IDS)[K][1]> | null }} AppDom */
+/** @typedef {{ row: HTMLLIElement, fill: HTMLSpanElement | null }} GestureRow */
+
+/** Looks up every element in DOM_IDS; a missing or wrong-typed element is null and logged. @returns {AppDom} */
+function queryDom() {
+  /** @type {Record<string, HTMLElement | null>} */
+  const dom = {};
+  for (const [key, [id, type]] of Object.entries(DOM_IDS)) {
+    const element = document.getElementById(id);
+    dom[key] = element instanceof type ? element : null;
+    if (!dom[key]) console.warn(`[App] #${id} not found or not a ${type.name}`);
+  }
+  return /** @type {AppDom} */ (dom);
+}
+
 export class App {
   constructor() {
     this._fps = new FPSCounter(60);
     this._recognizer = new GestureRecognizer();
+    /** @type {{ gesture: string, detail?: string, time: string }[]} */
     this._history = [];
+    /** @type {string | null} */
     this._lastGesture = null;
     this._running = false;
+    /** @type {import("./camera-state.js").CameraState} */
     this._cameraState = "off";
     this._handCount = 0;
-    this._dom = {};
+    /** @type {AppDom} */
+    this._dom = queryDom();
+    /** @type {Map<string, GestureRow>} */
     this._rows = new Map();
+    /** @type {Scene3D | null} */
     this._scene = null;
+    /** @type {HandTracker | null} */
     this._tracker = null;
   }
 
   async init() {
-    this._bindDom();
     this._initScene();
     this._initTracker();
     this._renderGesturePanel();
@@ -64,24 +102,6 @@ export class App {
     }
   }
 
-  _bindDom() {
-    const ids = {
-      video: "webcam", overlay: "output-canvas", scene: "scene-canvas", sceneError: "scene-error",
-      fps: "fps-counter", camera: "camera-status", hands: "hands-status", hint: "hand-hint",
-      placeholder: "camera-placeholder", start: "start-btn", startLabel: "start-label", stop: "stop-btn",
-      reset: "reset-btn", keyboardLink: "keyboard-link", shortcuts: "atalhos", history: "history-list",
-      panel: "gesture-panel", alert: "camera-alert", alertMessage: "camera-alert-message", retry: "retry-btn",
-      poseShape: "object-type", poseColor: "object-color", posePosition: "object-position",
-      poseRotation: "object-rotation", poseScale: "object-scale", announcer: "announcer",
-      footerMeta: "footer-meta", dropHint: "drop-hint", modelBtn: "model-btn",
-      sampleBtn: "sample-btn", modelInput: "model-input", modelStatus: "model-status", modelError: "model-error",
-    };
-    for (const [key, id] of Object.entries(ids)) {
-      this._dom[key] = document.getElementById(id);
-      if (!this._dom[key]) console.warn(`[App] #${id} not found`);
-    }
-  }
-
   _initScene() {
     const canvas = this._dom.scene;
     if (!canvas) return;
@@ -93,7 +113,7 @@ export class App {
     } catch (error) {
       this._scene = null;
       if (this._dom.sceneError) this._dom.sceneError.hidden = false;
-      console.error("[App] 3D scene failed:", error?.message);
+      console.error("[App] 3D scene failed:", error instanceof Error ? error.message : error);
     }
   }
 
@@ -103,14 +123,14 @@ export class App {
 
     this._tracker = new HandTracker(video, overlay);
     this._tracker.onResults((result) => this._handleResult(result));
-    // Start failures are surfaced by start(); this covers errors while running.
+    // Start failures are surfaced by start(); this covers errors while running
+    // (the tracker has already stopped itself).
     this._tracker.onError((error) => {
-      if (!this._running) return;
-      this._setCameraState("error");
-      this._showCameraError(error);
+      if (this._running) this._fail(error);
     });
   }
 
+  /** @param {import("./hand-tracker.js").TrackingResult} result */
   _handleResult(result) {
     this._fps.tick();
     this._setHandCount(result.hands.length);
@@ -127,10 +147,10 @@ export class App {
     const gestures = this._recognizer.recognize(hand1, hand2);
     const primary = this._recognizer.getPrimaryGesture(gestures);
     // A held pose stays lit (with a full bar) after it fires, until released.
-    const holding = gestures.find((g) => typeof g.progress === "number");
+    const holding = gestures.find((g) => "progress" in g);
 
     for (const g of gestures) {
-      if (typeof g.progress === "number") this._setHoldProgress(g.name, g.progress);
+      if ("progress" in g) this._setHoldProgress(g.name, g.progress);
     }
 
     if (primary?.active) {
@@ -141,7 +161,7 @@ export class App {
     this._highlightGesture(primary?.active ? primary.name : holding?.name ?? null);
   }
 
-  /** Runs a scene action and announces discrete changes. */
+  /** Runs a scene action and announces discrete changes. @param {import("./scene-actions.js").SceneAction} action */
   _perform(action) {
     const outcome = runAction(action, this._scene);
     if (outcome.announcement) this._announce(outcome.announcement);
@@ -183,8 +203,7 @@ export class App {
   async start() {
     if (this._running) return;
     if (!this._tracker) {
-      this._setCameraState("error");
-      this._showCameraError({ code: "unsupported" });
+      this._fail({ code: "unsupported" });
       return;
     }
 
@@ -199,22 +218,34 @@ export class App {
       }
       this._setCameraState("active");
     } catch (error) {
-      this._running = false;
-      this._setCameraState("error");
-      this._showCameraError(error);
+      this._fail(error);
     }
   }
 
   stop() {
     if (!this._running) return;
+    this._teardown();
+    this._setCameraState("off");
+  }
 
+  /**
+   * Single exit for every camera failure (start, runtime, missing tracker):
+   * tears the session down so "Tentar novamente" can start a fresh one.
+   * @param {unknown} error
+   */
+  _fail(error) {
+    this._teardown();
+    this._setCameraState("error");
+    this._showCameraError(error);
+  }
+
+  _teardown() {
     this._running = false;
     this._tracker?.stop();
     this._recognizer.reset();
     this._fps = new FPSCounter(60);
     this._setHandCount(0);
     this._highlightGesture(null);
-    this._setCameraState("off");
   }
 
   /** @param {import("./camera-state.js").CameraState} state */
@@ -229,6 +260,7 @@ export class App {
     if (changed && state !== "error") this._announce(`${CAMERA_LABELS[state]}.`);
   }
 
+  /** @param {number} count */
   _setHandCount(count) {
     if (count === this._handCount) return;
     this._handCount = count;
@@ -256,12 +288,13 @@ export class App {
     }
   }
 
-  /** @param {{ code?: string } | undefined} error */
+  /** @param {unknown} error */
   _showCameraError(error) {
     if (!this._dom.alert || !this._dom.alertMessage) return;
-    this._dom.alertMessage.textContent = cameraErrorMessage(error?.code);
+    const code = typeof error === "object" && error !== null && "code" in error && typeof error.code === "string" ? error.code : undefined;
+    this._dom.alertMessage.textContent = cameraErrorMessage(code);
     // Retrying cannot help when there is no camera or no camera API.
-    if (this._dom.retry) this._dom.retry.hidden = error?.code === "not-found" || error?.code === "unsupported";
+    if (this._dom.retry) this._dom.retry.hidden = code === "not-found" || code === "unsupported";
     this._dom.alert.hidden = false;
     if (error instanceof Error) console.warn("[App] camera:", error.message);
   }
@@ -288,6 +321,7 @@ export class App {
 
       row.append(createIcon(entry.icon), name, meta);
 
+      /** @type {HTMLSpanElement | null} */
       let fill = null;
       if (entry.holdMs > 0) {
         const track = document.createElement("span");
@@ -312,6 +346,7 @@ export class App {
     }
   }
 
+  /** @param {string} id @param {number} progress 0..1 */
   _setHoldProgress(id, progress) {
     const fill = this._rows.get(id)?.fill;
     if (fill) fill.style.transform = `scaleX(${progress})`;
@@ -356,6 +391,7 @@ export class App {
   }
 
   /** Polite screen-reader message for discrete changes (not continuous motion). */
+  /** @param {string} message */
   _announce(message) {
     const el = this._dom.announcer;
     if (!el) return;
@@ -375,6 +411,7 @@ export class App {
   _renderPose() {
     if (!this._scene) return;
     const text = formatPose(this._scene.getPose());
+    /** @type {[HTMLElement | null, string][]} */
     const fields = [
       [this._dom.poseShape, text.shape],
       [this._dom.poseColor, text.color],
