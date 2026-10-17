@@ -19,6 +19,9 @@ Todas as mudanças relevantes deste projeto. Formato baseado em [Keep a Changelo
 - Atalhos de letra (N, C, R, +/−) funcionam mesmo com um botão em foco; Espaço, Enter e setas continuam com o controle focado.
 - Luz de preenchimento na cena, para modelos escuros ou metálicos.
 
+### Corrigido
+- Modelos `.glb` com texturas embutidas apareciam sem textura: a CSP bloqueava o `fetch` das URLs `blob:` que o `GLTFLoader` cria para as imagens. `connect-src` passa a aceitar `blob:`.
+
 ### Removido
 - Funções e chaves de configuração sem uso (`lerp`, `Smoother`, `debounce`, `throttle`, `PALM_HOLD_MS` e outras).
 - Script UMD `three.min.js`, obsoleto desde o r150.

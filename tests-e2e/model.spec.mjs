@@ -55,3 +55,23 @@ test('a dropped GLB on the stage is loaded', async ({ page }) => {
   await expect(page.locator('#drop-hint')).toBeHidden();
   await expect(page.locator('#object-type')).toHaveText('Modelo: arrastado.glb');
 });
+
+test('a textured GLB keeps its embedded texture under the CSP', async ({ page }) => {
+  const textureErrors = [];
+  page.on('console', (msg) => { if (/texture|Content Security Policy/i.test(msg.text())) textureErrors.push(msg.text()); });
+  await page.goto('/');
+  await page.waitForFunction(() => window.__app?._scene);
+  await page.locator('#model-input').setInputFiles({
+    name: 'texturizado.glb',
+    mimeType: 'model/gltf-binary',
+    buffer: readFileSync(new URL('./fixtures/textured-quad.glb', import.meta.url)),
+  });
+  await expect(page.locator('#object-type')).toHaveText('Modelo: texturizado.glb');
+  const hasMap = await page.evaluate(() => {
+    let found = false;
+    window.__app._scene._customModel.traverse((node) => { if (node.isMesh && node.material?.map?.image) found = true; });
+    return found;
+  });
+  expect(textureErrors).toEqual([]);
+  expect(hasMap).toBe(true);
+});
