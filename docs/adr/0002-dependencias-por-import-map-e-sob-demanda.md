@@ -1,6 +1,6 @@
 # ADR-0002: Three.js por import map com SRI e MediaPipe sob demanda
 
-**Status:** Aceito
+**Status:** Substituído pelo [ADR-0003](0003-dependencias-self-hosted-com-build.md) (dependências self-hosted em `public/vendor/`)
 **Data:** 2026-10-15
 **Decisores:** Matheus Siqueira
 

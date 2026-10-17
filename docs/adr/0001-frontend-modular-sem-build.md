@@ -1,6 +1,6 @@
 # ADR-0001: Front-end modular sem build, com tipagem por JSDoc
 
-**Status:** Aceito
+**Status:** Substituído em parte pelo [ADR-0003](0003-dependencias-self-hosted-com-build.md): o código da aplicação continua sem build, mas as dependências de terceiros passam por uma etapa de build
 **Data:** 2026-10-15
 **Decisores:** Matheus Siqueira
 

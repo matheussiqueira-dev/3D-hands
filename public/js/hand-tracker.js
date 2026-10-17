@@ -1,16 +1,19 @@
 /**
- * Browser Hand Tracking — MediaPipe Hands Wrapper
- * Manages camera stream, MediaPipe model lifecycle, and landmark extraction.
+ * Browser Hand Tracking — MediaPipe HandLandmarker Wrapper
+ * Manages camera stream, HandLandmarker (@mediapipe/tasks-vision) lifecycle, and landmark extraction.
  * @author  Matheus Siqueira <https://www.matheussiqueira.dev>
  * @module  hand-tracker
  */
 
-import { CAMERA_CONFIG, COLOR_TOKENS, MEDIAPIPE_HANDS_BASE_URL, MEDIAPIPE_HANDS_SCRIPT, TRACKING_CONFIG } from './config.js';
+import { CAMERA_CONFIG, COLOR_TOKENS, TRACKING_CONFIG } from './config.js';
 import { LandmarkSmoother, withTimeout } from './utils.js';
 
 /** @typedef {'denied' | 'not-found' | 'in-use' | 'unsupported' | 'ended' | 'model' | 'unknown'} CameraErrorCode */
 /** @typedef {import('./utils.js').TrackedHand & { confidence: number }} DetectedHand */
 /** @typedef {{ hands: DetectedHand[], timestamp: number }} TrackingResult */
+/** @typedef {typeof import('vendor/hand-landmarker')} VisionModule */
+/** @typedef {import('@mediapipe/tasks-vision').HandLandmarker} HandLandmarker */
+/** @typedef {import('@mediapipe/tasks-vision').HandLandmarkerResult} HandLandmarkerResult */
 
 /** Error with a stable `code` the UI maps to a user-facing message. */
 export class CameraError extends Error {
@@ -26,26 +29,16 @@ export class CameraError extends Error {
   }
 }
 
-/** @type {Promise<void> | null} shared so the script is requested once per page */
-let handsScriptPromise = null;
+/** @type {Promise<VisionModule> | null} shared so the module is requested once per page */
+let visionModulePromise = null;
 
-/** Injects the pinned hands.js (with SRI) the first time the camera starts. */
-function loadHandsScript() {
-  if (typeof window.Hands !== 'undefined') return Promise.resolve();
-  handsScriptPromise ??= new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = MEDIAPIPE_HANDS_SCRIPT.src;
-    script.integrity = MEDIAPIPE_HANDS_SCRIPT.integrity;
-    script.crossOrigin = 'anonymous';
-    script.onload = () => resolve();
-    script.onerror = () => {
-      handsScriptPromise = null; // allow "Tentar novamente" to request it again
-      script.remove();
-      reject(new CameraError('model', 'Failed to load MediaPipe Hands script'));
-    };
-    document.head.append(script);
+/** Imports the self-hosted tasks-vision bundle (see the import map) the first time the camera starts. */
+function loadVisionModule() {
+  visionModulePromise ??= import('vendor/hand-landmarker').catch((err) => {
+    visionModulePromise = null; // allow "Tentar novamente" to request it again
+    throw new CameraError('model', `Failed to load MediaPipe Tasks Vision: ${errorText(err)}`, { cause: err });
   });
-  return handsScriptPromise;
+  return visionModulePromise;
 }
 
 const GET_USER_MEDIA_CODES = Object.freeze({
@@ -96,13 +89,16 @@ export class HandTracker {
     this._errorCbs   = [];
     /** @type {MediaStream | null} */
     this._stream     = null;
-    /** @type {MediaPipeHands | null} */
-    this._hands      = null;
+    /** @type {HandLandmarker | null} */
+    this._landmarker = null;
+    /** @type {readonly { start: number, end: number }[]} */
+    this._connections = [];
     /** @type {number | null} */
     this._rafHandle  = null;
     this._running    = false;
-    this._initialized = false;
-    this._runId       = 0; // bumped on every stop so a frame awaiting send() cannot revive an old loop
+    this._runId       = 0; // bumped on every stop so a start in flight cannot revive an old session
+    this._lastVideoTime = -1;
+    this._lastTimestamp = 0;
     this._colors      = { mark: '', halo: '' };
     this._smoother    = new LandmarkSmoother({ alpha: this._trackCfg.SMOOTHING_ALPHA });
   }
@@ -126,13 +122,17 @@ export class HandTracker {
       mark: css.getPropertyValue(COLOR_TOKENS.LANDMARK).trim(),
       halo: css.getPropertyValue(COLOR_TOKENS.LANDMARK_HALO).trim(),
     };
+    const runId = this._runId;
     try {
       await this._startCamera();
-      await loadHandsScript();
-      await this._initMediaPipe();
+      const vision = await loadVisionModule();
+      if (runId !== this._runId) { this.stop(); return; } // stopped while starting
+      await this._initLandmarker(vision);
+      if (runId !== this._runId) { this.stop(); return; }
       this._running = true;
       this._scheduleFrame(this._runId);
     } catch (err) {
+      if (runId !== this._runId) { this.stop(); return; }
       const error = err instanceof CameraError
         ? err
         : new CameraError('unknown', err instanceof Error ? err.message : String(err), { cause: err });
@@ -148,40 +148,49 @@ export class HandTracker {
     if (this._rafHandle !== null) { cancelAnimationFrame(this._rafHandle); this._rafHandle = null; }
     if (this._stream)  { this._stream.getTracks().forEach(t => t.stop()); this._stream = null; }
     this._video.srcObject = null;
-    if (this._hands)   { try { this._hands.close?.(); } catch {} this._hands = null; }
-    this._initialized = false;
+    if (this._landmarker) { try { this._landmarker.close(); } catch {} this._landmarker = null; }
+    this._lastVideoTime = -1;
     this._smoother.reset();
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
   }
 
   get isRunning() { return this._running; }
 
-  async _initMediaPipe() {
-    if (this._initialized) return;
-    const Hands = window.Hands;
-    if (typeof Hands === 'undefined')
-      throw new CameraError('model', 'MediaPipe Hands is not loaded.');
-    const hands = new Hands({
-      locateFile: file => MEDIAPIPE_HANDS_BASE_URL + file,
+  /** @param {VisionModule} vision */
+  async _initLandmarker(vision) {
+    const { FilesetResolver, HandLandmarker, WASM_BASE_URL, MODEL_URL } = vision;
+    this._connections = HandLandmarker.HAND_CONNECTIONS;
+    const cfg = this._trackCfg;
+    /** @param {'GPU' | 'CPU'} delegate */
+    const options = (delegate) => ({
+      baseOptions: { modelAssetPath: MODEL_URL, delegate },
+      runningMode: /** @type {const} */ ('VIDEO'),
+      numHands:                   cfg.MAX_HANDS,
+      minHandDetectionConfidence: cfg.MIN_DETECTION_CONF,
+      minHandPresenceConfidence:  cfg.MIN_PRESENCE_CONF,
+      minTrackingConfidence:      cfg.MIN_TRACKING_CONF,
     });
-    this._hands = hands;
-    hands.setOptions({
-      maxNumHands:            this._trackCfg.MAX_HANDS,
-      modelComplexity:        this._trackCfg.MODEL_COMPLEXITY,
-      minDetectionConfidence: this._trackCfg.MIN_DETECTION_CONF,
-      minTrackingConfidence:  this._trackCfg.MIN_TRACKING_CONF,
-    });
-    hands.onResults(raw => this._handleRawResults(raw));
+    const create = async () => {
+      const fileset = await FilesetResolver.forVisionTasks(WASM_BASE_URL);
+      if (cfg.DELEGATE === 'CPU') return HandLandmarker.createFromOptions(fileset, options('CPU'));
+      try {
+        return await HandLandmarker.createFromOptions(fileset, options('GPU'));
+      } catch (err) {
+        console.warn('[HandTracker] GPU delegate unavailable, using CPU:', errorText(err));
+        return HandLandmarker.createFromOptions(fileset, options('CPU'));
+      }
+    };
+    const pending = create();
     try {
-      await withTimeout(
-        hands.initialize(),
-        this._trackCfg.MODEL_INIT_TIMEOUT_MS,
-        () => new CameraError('model', `MediaPipe Hands did not initialize within ${this._trackCfg.MODEL_INIT_TIMEOUT_MS} ms`),
+      this._landmarker = await withTimeout(
+        pending,
+        cfg.MODEL_INIT_TIMEOUT_MS,
+        () => new CameraError('model', `HandLandmarker did not initialize within ${cfg.MODEL_INIT_TIMEOUT_MS} ms`),
       );
     } catch (err) {
-      throw err instanceof CameraError ? err : new CameraError('model', 'MediaPipe Hands failed to initialize', { cause: err });
+      pending.then((late) => late.close(), () => {}); // a model that finishes after the timeout is discarded
+      throw err instanceof CameraError ? err : new CameraError('model', `HandLandmarker failed to initialize: ${errorText(err)}`, { cause: err });
     }
-    this._initialized = true;
   }
 
   async _startCamera() {
@@ -234,46 +243,56 @@ export class HandTracker {
   }
 
   /** @param {number} runId */
-  async _processFrame(runId) {
+  _processFrame(runId) {
     if (!this._running || runId !== this._runId) return;
-    const hands = this._hands;
-    if (!hands || this._video.readyState < 2) {
+    const landmarker = this._landmarker;
+    const video = this._video;
+    // Only new camera frames go to the model; detectForVideo needs increasing timestamps.
+    if (!landmarker || video.readyState < 2 || video.currentTime === this._lastVideoTime) {
       this._scheduleFrame(runId); return;
     }
+    this._lastVideoTime = video.currentTime;
+    const timestamp = Math.max(performance.now(), this._lastTimestamp + 1);
+    this._lastTimestamp = timestamp;
+    /** @type {HandLandmarkerResult} */
+    let raw;
     try {
-      await hands.send({ image: this._video });
+      raw = landmarker.detectForVideo(video, timestamp);
     } catch (err) {
       // A failing model fails every frame: stop once instead of erroring 60 times a second.
-      if (runId !== this._runId) return;
       this.stop();
       this._emitError(new CameraError('model', `Frame processing failed: ${errorText(err)}`, { cause: err }));
       return;
     }
+    this._handleRawResults(raw, timestamp);
     this._scheduleFrame(runId);
   }
 
-  /** @param {MediaPipeHandsResults} rawResults */
-  _handleRawResults(rawResults) {
+  /**
+   * @param {HandLandmarkerResult} rawResults
+   * @param {number} timestamp
+   */
+  _handleRawResults(rawResults, timestamp) {
     this._ctx.clearRect(0, 0, this._canvas.width, this._canvas.height);
     /** @type {DetectedHand[]} */
     const hands = [];
-    const multiLandmarks  = rawResults.multiHandLandmarks  ?? [];
-    const multiHandedness = rawResults.multiHandedness     ?? [];
+    const multiLandmarks  = rawResults.landmarks  ?? [];
+    const multiHandedness = rawResults.handedness ?? [];
     for (let i = 0; i < multiLandmarks.length; i++) {
       const landmarks  = multiLandmarks[i];
-      const handedness = multiHandedness[i];
+      const handedness = multiHandedness[i]?.[0];
       if (!landmarks || landmarks.length !== 21) continue;
       this._drawHandOverlay(landmarks);
-      hands.push({ landmarks, handedness: handedness?.label ?? 'Unknown', confidence: handedness?.score ?? 0 });
+      hands.push({ landmarks, handedness: handedness?.categoryName || 'Unknown', confidence: handedness?.score ?? 0 });
     }
     // The overlay shows the raw detection; gestures use the smoothed landmarks.
     /** @type {TrackingResult} */
-    const result = { hands: this._smoother.smooth(hands), timestamp: performance.now() };
+    const result = { hands: this._smoother.smooth(hands), timestamp };
     this._resultCbs.forEach(cb => { try { cb(result); } catch {} });
   }
 
   /** Light marks over a dark halo so the skeleton reads on any camera frame. */
-  /** @param {MediaPipeLandmark[]} landmarks */
+  /** @param {import('./utils.js').Point[]} landmarks */
   _drawHandOverlay(landmarks) {
     const ctx = this._ctx;
     const W = this._canvas.width, H = this._canvas.height;
@@ -282,8 +301,8 @@ export class HandTracker {
     const strokeConnections = (color, width) => {
       ctx.strokeStyle = color;
       ctx.lineWidth = width;
-      for (const [a, b] of window.HAND_CONNECTIONS ?? []) {
-        const pa = landmarks[a], pb = landmarks[b];
+      for (const { start, end } of this._connections) {
+        const pa = landmarks[start], pb = landmarks[end];
         if (!pa || !pb) continue;
         ctx.beginPath();
         ctx.moveTo(pa.x * W, pa.y * H);

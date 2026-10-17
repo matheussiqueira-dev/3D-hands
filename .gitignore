@@ -43,5 +43,6 @@ test-results/
 playwright-report/
 .pytest_cache/
 
-# Generated at build time
+# Generated at build time (npm run build)
 public/version.json
+public/vendor/
